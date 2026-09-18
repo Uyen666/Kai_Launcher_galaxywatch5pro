@@ -1,4 +1,4 @@
-﻿package com.wristhub.launcher.presentation.screens
+package com.wristhub.launcher.presentation.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -22,16 +22,22 @@ fun AiAssistantScreen(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val defaultIdleStatus = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.ai_status_idle)
+    val defaultPromptText = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.ai_response_default)
+    val receivedMsgStatus = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.ai_status_received)
+    val listeningMsgStatus = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.ai_status_listening)
+    val analyzingMsgStatus = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.ai_status_analyzing)
+
     var isListening by remember { mutableStateOf(false) }
-    var aiStatus by remember { mutableStateOf("點擊開始對話") }
-    var responseText by remember { mutableStateOf("隨時向 Gemini 提問或下達電腦指令") }
+    var aiStatus by remember(defaultIdleStatus) { mutableStateOf(defaultIdleStatus) }
+    var responseText by remember(defaultPromptText) { mutableStateOf(defaultPromptText) }
 
     val lastPcMsg by PcWebSocketManager.lastMessage.collectAsState()
 
     LaunchedEffect(lastPcMsg) {
         if (lastPcMsg.isNotEmpty()) {
             responseText = lastPcMsg
-            aiStatus = "收到 AI 回應"
+            aiStatus = receivedMsgStatus
         }
     }
 
@@ -47,7 +53,7 @@ fun AiAssistantScreen(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = "Gemini AI 助理",
+                text = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.ai_assistant_title),
                 color = GreenNeon,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
@@ -61,10 +67,10 @@ fun AiAssistantScreen(
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     isListening = !isListening
                     if (isListening) {
-                        aiStatus = "正在聆聽語音..."
+                        aiStatus = listeningMsgStatus
                         PcWebSocketManager.sendCommand("AI_VOICE_START")
                     } else {
-                        aiStatus = "Gemini 分析中..."
+                        aiStatus = analyzingMsgStatus
                         PcWebSocketManager.sendCommand("AI_VOICE_STOP")
                     }
                 },

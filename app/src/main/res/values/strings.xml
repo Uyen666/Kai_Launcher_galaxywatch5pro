@@ -1,4 +1,13 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Wrist Hub</string>
+    <string name="date_format">EEE, MM/dd</string>
+    <string name="page_nav_hint">◀ Remote | AI ▶</string>
+    <string name="pc_remote_title">PC Remote</string>
+    <string name="ai_assistant_title">Gemini AI Assistant</string>
+    <string name="ai_status_idle">Tap to start talking</string>
+    <string name="ai_response_default">Ask Gemini anything or send PC commands</string>
+    <string name="ai_status_listening">Listening to voice…</string>
+    <string name="ai_status_analyzing">Gemini is thinking…</string>
+    <string name="ai_status_received">AI response received</string>
 </resources>

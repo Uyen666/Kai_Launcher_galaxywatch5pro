@@ -229,9 +229,10 @@ fun HudWatchFaceScreen(
     }
 
     val cal = Calendar.getInstance().apply { time = currentTime }
-    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-    val secFormat = SimpleDateFormat("ss", Locale.getDefault())
-    val dateFormat = SimpleDateFormat("MM/dd EEE", Locale.getDefault())
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val secFormat = remember { SimpleDateFormat("ss", Locale.getDefault()) }
+    val dateFormatPattern = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.date_format)
+    val dateFormat = remember(dateFormatPattern) { SimpleDateFormat(dateFormatPattern, Locale.getDefault()) }
 
     Box(
         modifier = modifier
@@ -601,7 +602,7 @@ fun HudWatchFaceScreen(
                 if (!isAmbient) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "◀ 遙控 | 助理 ▶",
+                        text = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.page_nav_hint),
                         color = Color.DarkGray,
                         fontSize = 10.sp
                     )

@@ -1,4 +1,4 @@
-﻿package com.wristhub.launcher.presentation.screens
+package com.wristhub.launcher.presentation.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -73,7 +73,7 @@ fun PcRemoteScreen(
                 modifier = Modifier.padding(bottom = 6.dp)
             ) {
                 Text(
-                    text = "PC遙控",
+                    text = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.pc_remote_title),
                     color = CyanNeon,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
