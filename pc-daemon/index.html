@@ -523,8 +523,11 @@
                 <a href="https://aistudio.google.com/apikey" target="_blank" class="text-[11px] text-cyan-400 hover:underline">取得免費 API Key ↗</a>
               </div>
               <div class="relative flex items-center">
-                <input id="aiApiKeyInput" type="password" placeholder="貼上您的 AIzaSy... 金鑰" class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-xs text-white font-mono outline-none transition pr-16" />
-                <button type="button" onclick="toggleKeyVisibility()" class="absolute right-2 px-2 py-1 text-[10px] text-slate-400 hover:text-white bg-slate-800 rounded">顯示</button>
+                <input id="aiApiKeyInput" type="password" placeholder="貼上您的 AIzaSy... 金鑰" class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-xs text-white font-mono outline-none transition pr-28" />
+                <div class="absolute right-2 flex items-center gap-1">
+                  <button type="button" onclick="toggleKeyVisibility()" id="aiToggleKeyBtn" class="px-2 py-1 text-[10px] text-slate-400 hover:text-white bg-slate-800 rounded">顯示</button>
+                  <button type="button" onclick="clearAiKey()" class="px-2 py-1 text-[10px] text-red-400 hover:text-red-300 bg-red-950/40 border border-red-800/40 rounded">清除</button>
+                </div>
               </div>
             </div>
 
@@ -1444,15 +1447,47 @@
           document.getElementById('aiApiKeyInput').value = "";
           await loadAiConfig();
           alert("Gemini 設定已成功儲存！手錶隨時可使用語音助理。");
+        } else {
+          const errTxt = await res.text();
+          addLog("ERROR", `儲存 AI 設定失敗: ${errTxt}`);
+          alert(`儲存失敗: ${errTxt}`);
         }
       } catch (e) {
         addLog("ERROR", `儲存 AI 設定失敗: ${e}`);
+        alert(`儲存失敗: ${e}`);
+      }
+    }
+
+    async function clearAiKey() {
+      if (!confirm("確定要清除目前已儲存的 Gemini API Key 嗎？")) return;
+      try {
+        const res = await fetch('/api/ai/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gemini_api_key: "" })
+        });
+        if (res.ok) {
+          addLog("AI", "已清除 Gemini API Key");
+          document.getElementById('aiApiKeyInput').value = "";
+          await loadAiConfig();
+          alert("已清除 Gemini API Key！");
+        }
+      } catch (e) {
+        addLog("ERROR", `清除失敗: ${e}`);
+        alert(`清除失敗: ${e}`);
       }
     }
 
     function toggleKeyVisibility() {
       const input = document.getElementById('aiApiKeyInput');
-      input.type = input.type === "password" ? "text" : "password";
+      const btn = document.getElementById('aiToggleKeyBtn');
+      if (input.type === "password") {
+        input.type = "text";
+        if (btn) btn.innerText = "隱藏";
+      } else {
+        input.type = "password";
+        if (btn) btn.innerText = "顯示";
+      }
     }
 
     async function testAiQuery() {
@@ -1470,9 +1505,21 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: prompt })
         });
-        const data = await res.json();
+        
+        let data;
+        try {
+          data = await res.json();
+        } catch (parseErr) {
+          const txt = await res.text();
+          throw new Error(txt || `HTTP ${res.status}`);
+        }
+
         if (data.status === "NO_KEY") {
+          addLog("AI", `⚠️ 未設定金鑰: ${data.reply}`);
           alert(data.reply);
+        } else if (data.status === "ERROR") {
+          addLog("ERROR", `❌ AI 測試錯誤: ${data.reply}`);
+          alert(`Gemini 回應錯誤:\n${data.reply}`);
         } else {
           addAiCard({
             transcript: data.transcript || prompt,
@@ -1484,7 +1531,8 @@
           input.value = "";
         }
       } catch (e) {
-        addLog("ERROR", `AI 測試失敗: ${e}`);
+        addLog("ERROR", `AI 測試失敗: ${e.message || e}`);
+        alert(`AI 測試連線失敗: ${e.message || e}`);
       } finally {
         btn.disabled = false;
         btn.innerText = "發送測試";

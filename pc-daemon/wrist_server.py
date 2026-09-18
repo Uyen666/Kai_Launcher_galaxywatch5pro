@@ -462,6 +462,14 @@ def execute_ai_action(action_code: str):
     return None
 
 def call_gemini_api(parts: list, api_key: str, model: str = "gemini-1.5-flash") -> dict:
+    if not api_key:
+        return {
+            "error": True,
+            "transcript": "",
+            "action": "NONE",
+            "reply": "尚未設定 Gemini API 金鑰，請先在控制台輸入 Key。"
+        }
+        
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     payload = {
         "contents": [
@@ -482,23 +490,95 @@ def call_gemini_api(parts: list, api_key: str, model: str = "gemini-1.5-flash") 
         method="POST"
     )
     
-    with urllib.request.urlopen(req, timeout=25) as resp:
-        res_data = json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            resp_bytes = resp.read()
+            res_data = json.loads(resp_bytes.decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        err_msg = ""
+        try:
+            err_body = e.read().decode("utf-8", errors="ignore")
+            err_json = json.loads(err_body)
+            err_msg = err_json.get("error", {}).get("message", err_body)
+        except Exception:
+            err_msg = str(e)
+            
+        if "API_KEY_INVALID" in err_msg or "API key not valid" in err_msg:
+            friendly = "Gemini API 金鑰無效，請至控制台「🤖 Gemini AI 設定」輸入正確的金鑰。"
+        elif "Resource has been exhausted" in err_msg or "Quota exceeded" in err_msg:
+            friendly = "Gemini API 請求配額已耗盡，請稍後再試或更換金鑰。"
+        elif "models/" in err_msg and "not found" in err_msg:
+            friendly = f"模型 {model} 不可用或金鑰無權限，請切換其他模型 (例如 gemini-1.5-flash)。"
+        else:
+            friendly = f"Google Gemini 錯誤 ({e.code}): {err_msg[:120]}"
+            
+        return {
+            "error": True,
+            "transcript": "API 請求失敗",
+            "action": "NONE",
+            "reply": friendly
+        }
+    except urllib.error.URLError as e:
+        return {
+            "error": True,
+            "transcript": "網路連線失敗",
+            "action": "NONE",
+            "reply": f"無法連線至 Google 伺服器，請檢查網路: {e.reason}"
+        }
+    except Exception as e:
+        return {
+            "error": True,
+            "transcript": "呼叫出錯",
+            "action": "NONE",
+            "reply": f"Gemini 呼叫異常: {str(e)}"
+        }
         
     candidates = res_data.get("candidates", [])
     if candidates:
         content = candidates[0].get("content", {})
         parts_list = content.get("parts", [])
         if parts_list:
-            text_json = parts_list[0].get("text", "{}")
-            return json.loads(text_json)
-            
+            raw_text = parts_list[0].get("text", "")
+            try:
+                clean_text = raw_text.strip()
+                if clean_text.startswith("```json"):
+                    clean_text = clean_text[7:]
+                elif clean_text.startswith("```"):
+                    clean_text = clean_text[3:]
+                if clean_text.endswith("```"):
+                    clean_text = clean_text[:-3]
+                clean_text = clean_text.strip()
+                
+                parsed = json.loads(clean_text)
+                if isinstance(parsed, dict):
+                    return {
+                        "transcript": str(parsed.get("transcript", "")),
+                        "action": str(parsed.get("action", "NONE")),
+                        "reply": str(parsed.get("reply", ""))
+                    }
+            except Exception:
+                return {
+                    "transcript": "提問解析",
+                    "action": "NONE",
+                    "reply": raw_text.strip() or "處理完成，但未收到具體內容。"
+                }
+                
+    prompt_feedback = res_data.get("promptFeedback", {})
+    block_reason = prompt_feedback.get("blockReason")
+    if block_reason:
+        return {
+            "error": True,
+            "transcript": "內容遭攔截",
+            "action": "NONE",
+            "reply": f"回答內容被安全機制攔截: {block_reason}"
+        }
+
     return {"transcript": "語音解析失敗", "action": "NONE", "reply": "抱歉，目前無法理解這段語音。"}
 
 @app.get("/api/ai/config")
 async def get_ai_config():
     cfg = load_config()
-    key = cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
+    key = (cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")).strip()
     masked_key = (key[:6] + "..." + key[-4:]) if len(key) > 10 else ("已設定" if key else "")
     return {
         "has_key": bool(key),
@@ -510,7 +590,7 @@ async def get_ai_config():
 async def save_ai_config(request: Request):
     data = await request.json()
     cfg = load_config()
-    if "gemini_api_key" in data and data["gemini_api_key"].strip():
+    if "gemini_api_key" in data:
         cfg["gemini_api_key"] = data["gemini_api_key"].strip()
     if "gemini_model" in data and data["gemini_model"].strip():
         cfg["gemini_model"] = data["gemini_model"].strip()
@@ -521,7 +601,7 @@ async def save_ai_config(request: Request):
 @app.post("/api/ai/voice")
 async def process_ai_voice(file: UploadFile = File(...)):
     cfg = load_config()
-    api_key = cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
+    api_key = (cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")).strip()
     model = cfg.get("gemini_model", "gemini-1.5-flash")
     
     if not api_key:
@@ -564,6 +644,16 @@ async def process_ai_voice(file: UploadFile = File(...)):
         action = ai_res.get("action", "NONE")
         reply = ai_res.get("reply", "")
         
+        if ai_res.get("error"):
+            await broadcast_log("AI", f"❌ 手錶語音 Gemini 失敗: {reply}")
+            return JSONResponse({
+                "status": "ERROR",
+                "transcript": transcript or "語音解析失敗",
+                "reply": reply,
+                "action": "NONE",
+                "action_result": None
+            })
+            
         action_result = execute_ai_action(action)
         
         await broadcast_log("AI", f"🗣️ [{transcript}] -> 🤖 {reply} (動作: {action_result or action}, 耗時 {elapsed_ms:.0f}ms)")
@@ -593,7 +683,7 @@ async def process_ai_voice(file: UploadFile = File(...)):
     except Exception as e:
         err_msg = f"Gemini 處理失敗: {str(e)}"
         await broadcast_log("AI", f"❌ {err_msg}")
-        return JSONResponse(status_code=500, content={
+        return JSONResponse({
             "status": "ERROR",
             "transcript": "處理出錯",
             "reply": f"連線異常: {str(e)[:60]}",
@@ -603,37 +693,69 @@ async def process_ai_voice(file: UploadFile = File(...)):
 
 @app.post("/api/ai/text")
 async def process_ai_text(request: Request):
-    cfg = load_config()
-    api_key = cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
-    model = cfg.get("gemini_model", "gemini-1.5-flash")
-    data = await request.json()
-    prompt = data.get("prompt", "")
-    
-    if not api_key:
-        return JSONResponse({
-            "status": "NO_KEY",
-            "transcript": prompt,
-            "reply": "請先設定 Gemini API Key！",
-            "action": "NONE"
-        })
+    try:
+        cfg = load_config()
+        api_key = (cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")).strip()
+        model = cfg.get("gemini_model", "gemini-1.5-flash")
+        data = await request.json()
+        prompt = data.get("prompt", "").strip()
         
-    parts = [
-        {"text": f"使用者指令/提問：{prompt}"},
-        {"text": AI_SYSTEM_INSTRUCTION}
-    ]
-    ai_res = call_gemini_api(parts, api_key, model)
-    action = ai_res.get("action", "NONE")
-    action_result = execute_ai_action(action)
-    transcript = ai_res.get("transcript", prompt)
-    reply = ai_res.get("reply", "")
-    await broadcast_log("AI", f"Web 測試 🗣️ [{transcript}] -> 🤖 {reply}")
-    return {
-        "status": "SUCCESS",
-        "transcript": transcript,
-        "reply": reply,
-        "action": action,
-        "action_result": action_result
-    }
+        if not prompt:
+            return JSONResponse({
+                "status": "ERROR",
+                "transcript": "",
+                "reply": "提問內容不能為空！",
+                "action": "NONE",
+                "action_result": None
+            })
+            
+        if not api_key:
+            return JSONResponse({
+                "status": "NO_KEY",
+                "transcript": prompt,
+                "reply": "尚未設定 Gemini API Key，請先在上方輸入金鑰並點擊儲存！",
+                "action": "NONE",
+                "action_result": None
+            })
+            
+        parts = [
+            {"text": f"使用者指令/提問：{prompt}"},
+            {"text": AI_SYSTEM_INSTRUCTION}
+        ]
+        ai_res = call_gemini_api(parts, api_key, model)
+        
+        action = ai_res.get("action", "NONE")
+        action_result = execute_ai_action(action)
+        transcript = ai_res.get("transcript") or prompt
+        reply = ai_res.get("reply", "")
+        
+        if ai_res.get("error"):
+            await broadcast_log("AI", f"❌ Gemini 錯誤: {reply}")
+            return JSONResponse({
+                "status": "ERROR",
+                "transcript": transcript,
+                "reply": reply,
+                "action": "NONE",
+                "action_result": None
+            })
+            
+        await broadcast_log("AI", f"Web 測試 🗣️ [{transcript}] -> 🤖 {reply} (動作: {action_result or action})")
+        return {
+            "status": "SUCCESS",
+            "transcript": transcript,
+            "reply": reply,
+            "action": action,
+            "action_result": action_result
+        }
+    except Exception as e:
+        await broadcast_log("AI", f"❌ process_ai_text 異常: {e}")
+        return JSONResponse({
+            "status": "ERROR",
+            "transcript": prompt if 'prompt' in locals() else "",
+            "reply": f"系統錯誤: {str(e)}",
+            "action": "NONE",
+            "action_result": None
+        })
 
 @app.websocket("/ws/dashboard")
 async def dashboard_endpoint(websocket: WebSocket):
