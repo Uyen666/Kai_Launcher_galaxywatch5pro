@@ -112,7 +112,7 @@
                 </svg>
 
                 <!-- Independent PC Connection Indicator -->
-                <div id="previewPcStatusLayer" class="absolute z-20 flex items-center justify-center transition-all pointer-events-none" style="transform: translateY(-74px);">
+                <div id="previewPcStatusLayer" class="absolute z-20 flex items-center justify-center transition-all pointer-events-none" style="transform: translate(0px, -74px);">
                   <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-xs">
                     <span id="previewPcDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
                     <span id="previewPcText" class="text-[9px] font-mono font-bold text-emerald-400">PC</span>
@@ -120,8 +120,13 @@
                 </div>
 
                 <!-- Independent Date & Day Layer -->
-                <div id="previewDateLayer" class="absolute z-20 flex items-center justify-center transition-all pointer-events-none" style="transform: translateY(-52px);">
+                <div id="previewDateLayer" class="absolute z-20 flex items-center justify-center transition-all pointer-events-none" style="transform: translate(0px, -52px);">
                   <span id="previewDateText" class="font-mono font-semibold tracking-wider text-[11px] text-slate-400">09/18 週五</span>
+                </div>
+
+                <!-- Independent Battery Text Layer -->
+                <div id="previewBatteryTextLayer" class="absolute z-20 flex items-center justify-center transition-all pointer-events-none" style="transform: translate(0px, 56px);">
+                  <span id="previewBatteryNumText" class="font-mono font-medium text-[11px] text-slate-400">⚡ 100%</span>
                 </div>
 
                 <!-- Digital Clock Layout -->
@@ -130,7 +135,6 @@
                     <span id="previewHourMin" class="text-3xl">17:45</span>
                     <span id="previewSec" class="text-xs text-emerald-400 ml-0.5 font-bold">:32</span>
                   </div>
-                  <div id="previewBatteryText" class="text-[9px] font-mono text-slate-300 mt-1">⚡ 91%</div>
                 </div>
 
                 <!-- Analog Clock Canvas Layout -->
@@ -141,10 +145,10 @@
             <!-- Controls (7 cols) -->
             <div class="sm:col-span-7 flex flex-col gap-3">
               
-              <!-- Background & Style Accordion -->
+              <!-- Background & General Style -->
               <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-3">
                 <div class="flex items-center justify-between">
-                  <span class="text-xs font-bold text-slate-200">🖼️ 背景與時鐘主體</span>
+                  <span class="text-xs font-bold text-slate-200">🖼️ 背景與時鐘樣式</span>
                   <span id="uploadState" class="text-[10px] text-cyan-400 font-normal">450x450 WebP</span>
                 </div>
                 
@@ -169,7 +173,7 @@
 
                 <div class="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/60">
                   <div>
-                    <label class="text-[11px] font-semibold text-slate-400 block mb-1">時鐘顏色</label>
+                    <label class="text-[11px] font-semibold text-slate-400 block mb-1">數位時鐘主色</label>
                     <div class="flex items-center gap-2">
                       <input type="color" id="clockColorInput" value="#00E5FF" onchange="updateWfColor(this.value)" class="w-7 h-7 rounded border-0 bg-transparent cursor-pointer" />
                       <span id="clockColorHex" class="text-xs font-mono text-cyan-300">#00E5FF</span>
@@ -185,12 +189,52 @@
                 </div>
               </div>
 
-              <!-- Battery Arc Card -->
+              <!-- Analog Hands & 3D Drop Shadows Card -->
+              <div id="handsControlCard" class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-200">🕰️ 指針獨立色彩與 3D 立體投影</span>
+                  <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300">
+                    <input type="checkbox" id="chkHandShadows" checked onchange="toggleHandShadows(this.checked)" class="accent-cyan-400 rounded" />
+                    <span>立體光影</span>
+                  </label>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 text-center">
+                  <div class="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+                    <label class="text-[10px] text-slate-400 block mb-1">時針顏色</label>
+                    <div class="flex items-center justify-center">
+                      <input type="color" id="hourHandColorInput" value="#FFFFFF" onchange="updateHourHandColor(this.value)" class="w-7 h-7 rounded border-0 bg-transparent cursor-pointer" />
+                    </div>
+                  </div>
+                  <div class="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+                    <label class="text-[10px] text-slate-400 block mb-1">分針顏色</label>
+                    <div class="flex items-center justify-center">
+                      <input type="color" id="minuteHandColorInput" value="#00E5FF" onchange="updateMinuteHandColor(this.value)" class="w-7 h-7 rounded border-0 bg-transparent cursor-pointer" />
+                    </div>
+                  </div>
+                  <div class="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+                    <label class="text-[10px] text-slate-400 block mb-1">秒針顏色</label>
+                    <div class="flex items-center justify-center">
+                      <input type="color" id="secondHandColorInput" value="#00E676" onchange="updateSecondHandColor(this.value)" class="w-7 h-7 rounded border-0 bg-transparent cursor-pointer" />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="pt-1 border-t border-slate-800/60">
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="text-[11px] text-slate-400">光影景深層次 (時針近、分針中、秒針遠)</label>
+                    <span id="shadowDepthLabel" class="text-[10px] font-mono text-cyan-400">第 3 級</span>
+                  </div>
+                  <input type="range" id="shadowDepthRange" min="1" max="5" value="3" oninput="updateShadowDepth(this.value)" class="w-full accent-cyan-400" />
+                </div>
+              </div>
+
+              <!-- Battery Arc Ring Card -->
               <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
                 <div class="flex items-center justify-between">
                   <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-200">
                     <input type="checkbox" id="chkBattery" checked onchange="toggleWidget('battery', this.checked)" class="accent-cyan-400 rounded" />
-                    <span>⚡ 電量弧度環</span>
+                    <span>⚡ 外圈電量弧環</span>
                   </label>
                   <div class="flex items-center gap-2">
                     <select id="batteryColorMode" onchange="updateBatteryColorMode(this.value)" class="bg-slate-800 border border-slate-700 text-[11px] text-slate-300 rounded px-1.5 py-0.5">
@@ -221,26 +265,63 @@
                 </div>
               </div>
 
-              <!-- Date & Weekday Card -->
+              <!-- Numerical Battery Text Card -->
               <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
                 <div class="flex items-center justify-between">
                   <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-200">
-                    <input type="checkbox" id="chkDate" checked onchange="toggleWidget('date', this.checked)" class="accent-cyan-400 rounded" />
-                    <span>📅 日期與星期</span>
+                    <input type="checkbox" id="chkBatteryText" onchange="toggleWidget('batteryText', this.checked)" class="accent-cyan-400 rounded" />
+                    <span>🔢 數字電量文字 (⚡ XX%)</span>
                   </label>
                   <div class="flex items-center gap-1.5">
                     <span class="text-[11px] text-slate-400">顏色:</span>
-                    <input type="color" id="dateColorInput" value="#94A3B8" onchange="updateDateColor(this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" />
+                    <input type="color" id="batteryTextColorInput" value="#94A3B8" onchange="updateBatteryTextColor(this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" />
                   </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/60">
                   <div>
                     <div class="flex items-center justify-between mb-1">
-                      <label class="text-[11px] text-slate-400">字體大小</label>
+                      <label class="text-[11px] text-slate-400">水平位置 (X軸)</label>
+                      <span id="batteryTextOffsetXLabel" class="text-[10px] font-mono text-cyan-400">0dp</span>
+                    </div>
+                    <input type="range" id="batteryTextOffsetXRange" min="-100" max="100" value="0" oninput="updateBatteryTextOffsetX(this.value)" class="w-full accent-cyan-400" />
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-[11px] text-slate-400">垂直位置 (Y軸)</label>
+                      <span id="batteryTextOffsetYLabel" class="text-[10px] font-mono text-cyan-400">56dp</span>
+                    </div>
+                    <input type="range" id="batteryTextOffsetYRange" min="-100" max="100" value="56" oninput="updateBatteryTextOffsetY(this.value)" class="w-full accent-cyan-400" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Date & Weekday Card (2D X/Y) -->
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-200">
+                    <input type="checkbox" id="chkDate" checked onchange="toggleWidget('date', this.checked)" class="accent-cyan-400 rounded" />
+                    <span>📅 日期與星期</span>
+                  </label>
+                  <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-[11px] text-slate-400">字級:</span>
+                      <input type="range" id="dateSizeRange" min="8" max="20" value="11" oninput="updateDateSize(this.value)" class="w-16 accent-cyan-400" />
                       <span id="dateSizeLabel" class="text-[10px] font-mono text-cyan-400">11sp</span>
                     </div>
-                    <input type="range" id="dateSizeRange" min="8" max="20" value="11" oninput="updateDateSize(this.value)" class="w-full accent-cyan-400" />
+                    <div class="flex items-center gap-1">
+                      <input type="color" id="dateColorInput" value="#94A3B8" onchange="updateDateColor(this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/60">
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-[11px] text-slate-400">水平位置 (X軸)</label>
+                      <span id="dateOffsetXLabel" class="text-[10px] font-mono text-cyan-400">0dp</span>
+                    </div>
+                    <input type="range" id="dateOffsetXRange" min="-100" max="100" value="0" oninput="updateDateOffsetX(this.value)" class="w-full accent-cyan-400" />
                   </div>
                   <div>
                     <div class="flex items-center justify-between mb-1">
@@ -252,26 +333,32 @@
                 </div>
               </div>
 
-              <!-- PC Status Indicator Card -->
+              <!-- PC Status Indicator Card (2D X/Y) -->
               <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
                 <div class="flex items-center justify-between">
                   <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-200">
                     <input type="checkbox" id="chkPcStatus" checked onchange="toggleWidget('pcStatus', this.checked)" class="accent-cyan-400 rounded" />
-                    <span>🟢 電腦狀態指示燈 (指針/數位通用)</span>
+                    <span>🟢 電腦狀態指示燈</span>
                   </label>
-                  <div class="flex items-center gap-1.5">
-                    <span class="text-[11px] text-slate-400">燈號色:</span>
-                    <input type="color" id="pcStatusColorInput" value="#00E676" onchange="updatePcStatusColor(this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" />
+                  <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-[11px] text-slate-400">大小:</span>
+                      <input type="range" id="pcStatusSizeRange" min="4" max="14" value="7" oninput="updatePcStatusSize(this.value)" class="w-16 accent-cyan-400" />
+                      <span id="pcStatusSizeLabel" class="text-[10px] font-mono text-cyan-400">7dp</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <input type="color" id="pcStatusColorInput" value="#00E676" onchange="updatePcStatusColor(this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" />
+                    </div>
                   </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/60">
                   <div>
                     <div class="flex items-center justify-between mb-1">
-                      <label class="text-[11px] text-slate-400">燈號大小</label>
-                      <span id="pcStatusSizeLabel" class="text-[10px] font-mono text-cyan-400">7dp</span>
+                      <label class="text-[11px] text-slate-400">水平位置 (X軸)</label>
+                      <span id="pcStatusOffsetXLabel" class="text-[10px] font-mono text-cyan-400">0dp</span>
                     </div>
-                    <input type="range" id="pcStatusSizeRange" min="4" max="14" value="7" oninput="updatePcStatusSize(this.value)" class="w-full accent-cyan-400" />
+                    <input type="range" id="pcStatusOffsetXRange" min="-100" max="100" value="0" oninput="updatePcStatusOffsetX(this.value)" class="w-full accent-cyan-400" />
                   </div>
                   <div>
                     <div class="flex items-center justify-between mb-1">
@@ -334,21 +421,32 @@
   <script>
     let currentConfig = { buttons: [] };
     let currentWfConfig = {
-      clock_style: "DIGITAL",
+      clock_style: "ANALOG",
       clock_color: "#00E5FF",
       dim_percent: 25,
+      hour_hand_color: "#FFFFFF",
+      minute_hand_color: "#00E5FF",
+      second_hand_color: "#00E676",
+      enable_hand_shadows: true,
+      shadow_depth_level: 3,
       show_battery: true,
       battery_color_mode: "DYNAMIC",
       battery_custom_color: "#00E676",
       battery_stroke_width: 6,
       battery_inset: 4,
+      show_battery_text: false,
+      battery_text_color: "#94A3B8",
+      battery_text_offset_x: 0,
+      battery_text_offset_y: 56,
       show_date: true,
       date_color: "#94A3B8",
       date_font_size: 11,
+      date_offset_x: 0,
       date_offset_y: -52,
       show_pc_status: true,
       pc_status_color: "#00E676",
       pc_status_size: 7,
+      pc_status_offset_x: 0,
       pc_status_offset_y: -74,
       has_custom_bg: false
     };
@@ -393,7 +491,15 @@
       document.getElementById('dimRange').value = currentWfConfig.dim_percent ?? 25;
       document.getElementById('dimValLabel').innerText = `${currentWfConfig.dim_percent ?? 25}%`;
 
-      // Battery Arc
+      // Analog Hands & Shadows
+      document.getElementById('hourHandColorInput').value = currentWfConfig.hour_hand_color || "#FFFFFF";
+      document.getElementById('minuteHandColorInput').value = currentWfConfig.minute_hand_color || "#00E5FF";
+      document.getElementById('secondHandColorInput').value = currentWfConfig.second_hand_color || "#00E676";
+      document.getElementById('chkHandShadows').checked = currentWfConfig.enable_hand_shadows !== false;
+      document.getElementById('shadowDepthRange').value = currentWfConfig.shadow_depth_level ?? 3;
+      document.getElementById('shadowDepthLabel').innerText = `第 ${currentWfConfig.shadow_depth_level ?? 3} 級`;
+
+      // Battery Arc Ring
       document.getElementById('chkBattery').checked = currentWfConfig.show_battery !== false;
       document.getElementById('batteryColorMode').value = currentWfConfig.battery_color_mode || "DYNAMIC";
       document.getElementById('batteryColorInput').value = currentWfConfig.battery_custom_color || "#00E676";
@@ -403,19 +509,31 @@
       document.getElementById('batteryStrokeRange').value = currentWfConfig.battery_stroke_width ?? 6;
       document.getElementById('batteryStrokeLabel').innerText = `${currentWfConfig.battery_stroke_width ?? 6}dp`;
 
-      // Date
+      // Numerical Battery Text
+      document.getElementById('chkBatteryText').checked = currentWfConfig.show_battery_text === true;
+      document.getElementById('batteryTextColorInput').value = currentWfConfig.battery_text_color || "#94A3B8";
+      document.getElementById('batteryTextOffsetXRange').value = currentWfConfig.battery_text_offset_x ?? 0;
+      document.getElementById('batteryTextOffsetXLabel').innerText = `${currentWfConfig.battery_text_offset_x ?? 0}dp`;
+      document.getElementById('batteryTextOffsetYRange').value = currentWfConfig.battery_text_offset_y ?? 56;
+      document.getElementById('batteryTextOffsetYLabel').innerText = `${currentWfConfig.battery_text_offset_y ?? 56}dp`;
+
+      // Date (2D)
       document.getElementById('chkDate').checked = currentWfConfig.show_date !== false;
       document.getElementById('dateColorInput').value = currentWfConfig.date_color || "#94A3B8";
       document.getElementById('dateSizeRange').value = currentWfConfig.date_font_size ?? 11;
       document.getElementById('dateSizeLabel').innerText = `${currentWfConfig.date_font_size ?? 11}sp`;
+      document.getElementById('dateOffsetXRange').value = currentWfConfig.date_offset_x ?? 0;
+      document.getElementById('dateOffsetXLabel').innerText = `${currentWfConfig.date_offset_x ?? 0}dp`;
       document.getElementById('dateOffsetYRange').value = currentWfConfig.date_offset_y ?? -52;
       document.getElementById('dateOffsetYLabel').innerText = `${currentWfConfig.date_offset_y ?? -52}dp`;
 
-      // PC Status
+      // PC Status (2D)
       document.getElementById('chkPcStatus').checked = currentWfConfig.show_pc_status !== false;
       document.getElementById('pcStatusColorInput').value = currentWfConfig.pc_status_color || "#00E676";
       document.getElementById('pcStatusSizeRange').value = currentWfConfig.pc_status_size ?? 7;
       document.getElementById('pcStatusSizeLabel').innerText = `${currentWfConfig.pc_status_size ?? 7}dp`;
+      document.getElementById('pcStatusOffsetXRange').value = currentWfConfig.pc_status_offset_x ?? 0;
+      document.getElementById('pcStatusOffsetXLabel').innerText = `${currentWfConfig.pc_status_offset_x ?? 0}dp`;
       document.getElementById('pcStatusOffsetYRange').value = currentWfConfig.pc_status_offset_y ?? -74;
       document.getElementById('pcStatusOffsetYLabel').innerText = `${currentWfConfig.pc_status_offset_y ?? -74}dp`;
 
@@ -455,57 +573,97 @@
       document.getElementById('previewDimOverlay').style.opacity = val / 100;
     }
 
+    // Hand Colors & Shadows Handlers
+    function updateHourHandColor(hex) {
+      currentWfConfig.hour_hand_color = hex;
+    }
+    function updateMinuteHandColor(hex) {
+      currentWfConfig.minute_hand_color = hex;
+    }
+    function updateSecondHandColor(hex) {
+      currentWfConfig.second_hand_color = hex;
+    }
+    function toggleHandShadows(checked) {
+      currentWfConfig.enable_hand_shadows = checked;
+    }
+    function updateShadowDepth(val) {
+      currentWfConfig.shadow_depth_level = parseInt(val);
+      document.getElementById('shadowDepthLabel').innerText = `第 ${val} 級`;
+    }
+
+    // Battery Arc Ring Handlers
     function updateBatteryColorMode(mode) {
       currentWfConfig.battery_color_mode = mode;
       document.getElementById('batteryCustomColorWrapper').style.display = (mode === 'CUSTOM') ? 'flex' : 'none';
       updatePreviewDisplay();
     }
-
     function updateBatteryCustomColor(hex) {
       currentWfConfig.battery_custom_color = hex;
       updatePreviewDisplay();
     }
-
     function updateBatteryInset(val) {
       currentWfConfig.battery_inset = parseInt(val);
       document.getElementById('batteryInsetLabel').innerText = `${val}dp`;
       updatePreviewDisplay();
     }
-
     function updateBatteryStroke(val) {
       currentWfConfig.battery_stroke_width = parseInt(val);
       document.getElementById('batteryStrokeLabel').innerText = `${val}dp`;
       updatePreviewDisplay();
     }
 
+    // Battery Text Handlers
+    function updateBatteryTextColor(hex) {
+      currentWfConfig.battery_text_color = hex;
+      updatePreviewDisplay();
+    }
+    function updateBatteryTextOffsetX(val) {
+      currentWfConfig.battery_text_offset_x = parseInt(val);
+      document.getElementById('batteryTextOffsetXLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
+    function updateBatteryTextOffsetY(val) {
+      currentWfConfig.battery_text_offset_y = parseInt(val);
+      document.getElementById('batteryTextOffsetYLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
+
+    // Date Handlers
     function updateDateColor(hex) {
       currentWfConfig.date_color = hex;
       updatePreviewDisplay();
     }
-
     function updateDateSize(val) {
       currentWfConfig.date_font_size = parseInt(val);
       document.getElementById('dateSizeLabel').innerText = `${val}sp`;
       updatePreviewDisplay();
     }
-
+    function updateDateOffsetX(val) {
+      currentWfConfig.date_offset_x = parseInt(val);
+      document.getElementById('dateOffsetXLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
     function updateDateOffsetY(val) {
       currentWfConfig.date_offset_y = parseInt(val);
       document.getElementById('dateOffsetYLabel').innerText = `${val}dp`;
       updatePreviewDisplay();
     }
 
+    // PC Status Handlers
     function updatePcStatusColor(hex) {
       currentWfConfig.pc_status_color = hex;
       updatePreviewDisplay();
     }
-
     function updatePcStatusSize(val) {
       currentWfConfig.pc_status_size = parseInt(val);
       document.getElementById('pcStatusSizeLabel').innerText = `${val}dp`;
       updatePreviewDisplay();
     }
-
+    function updatePcStatusOffsetX(val) {
+      currentWfConfig.pc_status_offset_x = parseInt(val);
+      document.getElementById('pcStatusOffsetXLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
     function updatePcStatusOffsetY(val) {
       currentWfConfig.pc_status_offset_y = parseInt(val);
       document.getElementById('pcStatusOffsetYLabel').innerText = `${val}dp`;
@@ -514,26 +672,29 @@
 
     function toggleWidget(widget, isChecked) {
       if (widget === 'battery') currentWfConfig.show_battery = isChecked;
+      if (widget === 'batteryText') currentWfConfig.show_battery_text = isChecked;
       if (widget === 'date') currentWfConfig.show_date = isChecked;
       if (widget === 'pcStatus') currentWfConfig.show_pc_status = isChecked;
       updatePreviewDisplay();
     }
 
     function updatePreviewDisplay() {
+      // 1:1 Precise scale: Watch is 225dp, Web Preview is 224px
+      const scale = 224 / 225;
+
       // Background dim
       document.getElementById('previewDimOverlay').style.opacity = (currentWfConfig.dim_percent ?? 25) / 100;
       document.getElementById('previewHourMin').style.color = currentWfConfig.clock_color || '#00E5FF';
 
-      // Battery Arc
+      // Battery Arc Ring
       const showBattery = currentWfConfig.show_battery !== false;
       document.getElementById('previewBatteryRingSvg').style.display = showBattery ? 'block' : 'none';
-      document.getElementById('previewBatteryText').style.display = showBattery ? 'block' : 'none';
       if (showBattery) {
         const inset = currentWfConfig.battery_inset ?? 4;
         const strokeW = currentWfConfig.battery_stroke_width ?? 6;
-        const scale = 100 / 225; // Map 225 radius to 50 viewBox
-        const r = Math.max(10, 50 - (inset * scale) - (strokeW * scale / 2));
-        const svgStrokeW = Math.max(1.5, strokeW * scale);
+        const svgScale = 100 / 225; // Map 225dp to 100 viewBox
+        const r = Math.max(10, 50 - (inset * svgScale) - (strokeW * svgScale / 2));
+        const svgStrokeW = Math.max(1.5, strokeW * svgScale);
         
         const track = document.getElementById('previewBatteryTrack');
         const prog = document.getElementById('previewBatteryProgress');
@@ -554,7 +715,19 @@
         prog.setAttribute('stroke', bColor);
       }
 
-      // Date Layer
+      // Battery Text Layer (2D X/Y)
+      const showBatteryText = currentWfConfig.show_battery_text === true;
+      const batteryTextLayer = document.getElementById('previewBatteryTextLayer');
+      batteryTextLayer.style.display = showBatteryText ? 'flex' : 'none';
+      if (showBatteryText) {
+        const text = document.getElementById('previewBatteryNumText');
+        text.style.color = currentWfConfig.battery_text_color || '#94A3B8';
+        const px = (currentWfConfig.battery_text_offset_x ?? 0) * scale;
+        const py = (currentWfConfig.battery_text_offset_y ?? 56) * scale;
+        batteryTextLayer.style.transform = `translate(${px}px, ${py}px)`;
+      }
+
+      // Date Layer (2D X/Y)
       const showDate = currentWfConfig.show_date !== false;
       const dateLayer = document.getElementById('previewDateLayer');
       dateLayer.style.display = showDate ? 'flex' : 'none';
@@ -562,11 +735,12 @@
         const dateText = document.getElementById('previewDateText');
         dateText.style.color = currentWfConfig.date_color || '#94A3B8';
         dateText.style.fontSize = `${currentWfConfig.date_font_size ?? 11}px`;
-        const previewY = (currentWfConfig.date_offset_y ?? -52) * 0.5;
-        dateLayer.style.transform = `translateY(${previewY}px)`;
+        const px = (currentWfConfig.date_offset_x ?? 0) * scale;
+        const py = (currentWfConfig.date_offset_y ?? -52) * scale;
+        dateLayer.style.transform = `translate(${px}px, ${py}px)`;
       }
 
-      // PC Status Layer
+      // PC Status Layer (2D X/Y)
       const showPc = currentWfConfig.show_pc_status !== false;
       const pcLayer = document.getElementById('previewPcStatusLayer');
       pcLayer.style.display = showPc ? 'flex' : 'none';
@@ -581,8 +755,9 @@
         text.style.color = pcColor;
         text.style.fontSize = `${Math.max(8, (pcSize + 3) * 0.8)}px`;
         
-        const previewY = (currentWfConfig.pc_status_offset_y ?? -74) * 0.5;
-        pcLayer.style.transform = `translateY(${previewY}px)`;
+        const px = (currentWfConfig.pc_status_offset_x ?? 0) * scale;
+        const py = (currentWfConfig.pc_status_offset_y ?? -74) * scale;
+        pcLayer.style.transform = `translate(${px}px, ${py}px)`;
       }
     }
 
@@ -637,7 +812,7 @@
       }
     }
 
-    // Canvas Analog Clock for Preview
+    // Canvas Analog Clock for Preview with 3D Layered Optical Shadows
     function startAnalogPreviewClock() {
       const canvas = document.getElementById('previewAnalogCanvas');
       const ctx = canvas.getContext('2d');
@@ -654,56 +829,118 @@
 
         if (currentWfConfig.clock_style !== "ANALOG") return;
 
-        ctx.clearRect(0, 0, 208, 208);
-        const cx = 104, cy = 104;
+        ctx.clearRect(0, 0, 224, 224);
+        const cx = 112, cy = 112;
 
         // Draw hour ticks
         ctx.strokeStyle = '#475569';
         ctx.lineWidth = 2;
         for (let i = 0; i < 12; i++) {
           const angle = (i * 30) * Math.PI / 180;
-          const x1 = cx + Math.cos(angle) * 88;
-          const y1 = cy + Math.sin(angle) * 88;
-          const x2 = cx + Math.cos(angle) * 98;
-          const y2 = cy + Math.sin(angle) * 98;
+          const x1 = cx + Math.cos(angle) * 94;
+          const y1 = cy + Math.sin(angle) * 94;
+          const x2 = cx + Math.cos(angle) * 105;
+          const y2 = cy + Math.sin(angle) * 105;
           ctx.beginPath();
           ctx.moveTo(x1, y1);
           ctx.lineTo(x2, y2);
           ctx.stroke();
         }
 
-        // Hour Hand
+        const depthScale = (currentWfConfig.enable_hand_shadows !== false)
+          ? ((currentWfConfig.shadow_depth_level ?? 3) / 3)
+          : 0;
+
+        // --- 1. Hour Hand ---
         const hrAngle = ((hrs % 12 + mins / 60) * 30 - 90) * Math.PI / 180;
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 4.5;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + Math.cos(hrAngle) * 50, cy + Math.sin(hrAngle) * 50);
-        ctx.stroke();
+        const hrLen = 56;
+        if (depthScale > 0) {
+          ctx.save();
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+          ctx.shadowBlur = 4 * depthScale;
+          ctx.shadowOffsetX = 1.5 * depthScale;
+          ctx.shadowOffsetY = 2.0 * depthScale;
+          ctx.strokeStyle = currentWfConfig.hour_hand_color || '#FFFFFF';
+          ctx.lineWidth = 4.5;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(hrAngle) * hrLen, cy + Math.sin(hrAngle) * hrLen);
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.strokeStyle = currentWfConfig.hour_hand_color || '#FFFFFF';
+          ctx.lineWidth = 4.5;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(hrAngle) * hrLen, cy + Math.sin(hrAngle) * hrLen);
+          ctx.stroke();
+        }
 
-        // Minute Hand
+        // --- 2. Minute Hand ---
         const minAngle = ((mins + secs / 60) * 6 - 90) * Math.PI / 180;
-        ctx.strokeStyle = currentWfConfig.clock_color || '#00E5FF';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + Math.cos(minAngle) * 75, cy + Math.sin(minAngle) * 75);
-        ctx.stroke();
+        const minLen = 82;
+        if (depthScale > 0) {
+          ctx.save();
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+          ctx.shadowBlur = 6 * depthScale;
+          ctx.shadowOffsetX = 3.0 * depthScale;
+          ctx.shadowOffsetY = 4.0 * depthScale;
+          ctx.strokeStyle = currentWfConfig.minute_hand_color || '#00E5FF';
+          ctx.lineWidth = 3;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(minAngle) * minLen, cy + Math.sin(minAngle) * minLen);
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.strokeStyle = currentWfConfig.minute_hand_color || '#00E5FF';
+          ctx.lineWidth = 3;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(minAngle) * minLen, cy + Math.sin(minAngle) * minLen);
+          ctx.stroke();
+        }
 
-        // Second Hand (Ticks once per second!)
+        // --- 3. Second Hand (Ticks once per second!) ---
         const secAngle = (secs * 6 - 90) * Math.PI / 180;
-        ctx.strokeStyle = '#00E676';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(cx - Math.cos(secAngle) * 15, cy - Math.sin(secAngle) * 15);
-        ctx.lineTo(cx + Math.cos(secAngle) * 85, cy + Math.sin(secAngle) * 85);
-        ctx.stroke();
+        const secLen = 94;
+        const tailLen = 16;
+        if (depthScale > 0) {
+          ctx.save();
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+          ctx.shadowBlur = 8 * depthScale;
+          ctx.shadowOffsetX = 4.5 * depthScale;
+          ctx.shadowOffsetY = 6.0 * depthScale;
+          ctx.strokeStyle = currentWfConfig.second_hand_color || '#00E676';
+          ctx.lineWidth = 1.5;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(cx - Math.cos(secAngle) * tailLen, cy - Math.sin(secAngle) * tailLen);
+          ctx.lineTo(cx + Math.cos(secAngle) * secLen, cy + Math.sin(secAngle) * secLen);
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.strokeStyle = currentWfConfig.second_hand_color || '#00E676';
+          ctx.lineWidth = 1.5;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(cx - Math.cos(secAngle) * tailLen, cy - Math.sin(secAngle) * tailLen);
+          ctx.lineTo(cx + Math.cos(secAngle) * secLen, cy + Math.sin(secAngle) * secLen);
+          ctx.stroke();
+        }
 
         // Center Pin
-        ctx.fillStyle = '#00E676';
+        ctx.fillStyle = currentWfConfig.second_hand_color || '#00E676';
         ctx.beginPath();
         ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
         ctx.fill();
       }, 1000);
     }

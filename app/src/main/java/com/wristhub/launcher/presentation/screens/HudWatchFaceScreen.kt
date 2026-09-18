@@ -78,6 +78,38 @@ fun HudWatchFaceScreen(
         }
     }
 
+    val hourHandColor = remember(wfConfig.hourHandColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(wfConfig.hourHandColorHex))
+        } catch (_: Exception) {
+            Color.White
+        }
+    }
+
+    val minuteHandColor = remember(wfConfig.minuteHandColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(wfConfig.minuteHandColorHex))
+        } catch (_: Exception) {
+            CyanNeon
+        }
+    }
+
+    val secondHandColor = remember(wfConfig.secondHandColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(wfConfig.secondHandColorHex))
+        } catch (_: Exception) {
+            GreenNeon
+        }
+    }
+
+    val batteryTextColor = remember(wfConfig.batteryTextColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(wfConfig.batteryTextColorHex))
+        } catch (_: Exception) {
+            TextSecondary
+        }
+    }
+
     // Clock update loop: 1 second in active, 30s in ambient
     LaunchedEffect(isAmbient) {
         while (true) {
@@ -156,12 +188,12 @@ fun HudWatchFaceScreen(
             }
         }
 
-        // 3. PC Connection indicator (Active in both Digital and Analog!)
+        // 3. PC Connection indicator (2D X/Y Offset, Active in both Digital and Analog!)
         if (!isAmbient && wfConfig.showPcStatus) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .offset(y = wfConfig.pcStatusOffsetY.dp),
+                    .offset(x = wfConfig.pcStatusOffsetX.dp, y = wfConfig.pcStatusOffsetY.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
@@ -188,12 +220,12 @@ fun HudWatchFaceScreen(
             }
         }
 
-        // 4. Date & Day Indicator (Active in both Digital and Analog!)
+        // 4. Date & Day Indicator (2D X/Y Offset, Active in both Digital and Analog!)
         if (wfConfig.showDate) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .offset(y = wfConfig.dateOffsetY.dp),
+                    .offset(x = wfConfig.dateOffsetX.dp, y = wfConfig.dateOffsetY.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -206,7 +238,25 @@ fun HudWatchFaceScreen(
             }
         }
 
-        // 5. Main Clock Area: ANALOG vs DIGITAL
+        // 5. Numerical Battery Text (Separate toggle, 2D X/Y Offset, Active in both Digital and Analog!)
+        if (wfConfig.showBatteryText) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset(x = wfConfig.batteryTextOffsetX.dp, y = wfConfig.batteryTextOffsetY.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "⚡ $batteryPercent%",
+                    color = if (isAmbient) Color.Gray else batteryTextColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+
+        // 6. Main Clock Area: ANALOG vs DIGITAL
         if (wfConfig.clockStyle == "ANALOG") {
             // Analog Clock Canvas
             Canvas(
@@ -236,66 +286,105 @@ fun HudWatchFaceScreen(
                 val mins = cal.get(Calendar.MINUTE)
                 val secs = cal.get(Calendar.SECOND)
 
-                // Hour Hand
+                // Depth scale based on config (simulating real mechanical stack distance)
+                val depthScale = if (wfConfig.enableHandShadows && !isAmbient) (wfConfig.shadowDepthLevel / 3f) else 0f
+
+                // --- 1. HOUR HAND (Lowest layer, closest to dial) ---
                 val hrAngle = ((hrs % 12 + mins / 60f) * 30.0 - 90.0) * (PI / 180.0)
                 val hrLen = radius * 0.52f
+                val hrStart = Offset(cx, cy)
+                val hrEnd = Offset(cx + cos(hrAngle).toFloat() * hrLen, cy + sin(hrAngle).toFloat() * hrLen)
+                
+                if (depthScale > 0f) {
+                    val hdx = 1.5.dp.toPx() * depthScale
+                    val hdy = 2.0.dp.toPx() * depthScale
+                    drawLine(
+                        color = Color.Black.copy(alpha = 0.55f),
+                        start = Offset(hrStart.x + hdx, hrStart.y + hdy),
+                        end = Offset(hrEnd.x + hdx, hrEnd.y + hdy),
+                        strokeWidth = 5.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
                 drawLine(
-                    color = Color.White,
-                    start = Offset(cx, cy),
-                    end = Offset(cx + cos(hrAngle).toFloat() * hrLen, cy + sin(hrAngle).toFloat() * hrLen),
+                    color = hourHandColor,
+                    start = hrStart,
+                    end = hrEnd,
                     strokeWidth = 4.5.dp.toPx(),
                     cap = StrokeCap.Round
                 )
 
-                // Minute Hand
+                // --- 2. MINUTE HAND (Middle layer) ---
                 val minAngle = ((mins + secs / 60f) * 6.0 - 90.0) * (PI / 180.0)
                 val minLen = radius * 0.76f
+                val minStart = Offset(cx, cy)
+                val minEnd = Offset(cx + cos(minAngle).toFloat() * minLen, cy + sin(minAngle).toFloat() * minLen)
+                
+                if (depthScale > 0f) {
+                    val mdx = 3.0.dp.toPx() * depthScale
+                    val mdy = 4.0.dp.toPx() * depthScale
+                    drawLine(
+                        color = Color.Black.copy(alpha = 0.45f),
+                        start = Offset(minStart.x + mdx, minStart.y + mdy),
+                        end = Offset(minEnd.x + mdx, minEnd.y + mdy),
+                        strokeWidth = 3.5.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
                 drawLine(
-                    color = clockColor,
-                    start = Offset(cx, cy),
-                    end = Offset(cx + cos(minAngle).toFloat() * minLen, cy + sin(minAngle).toFloat() * minLen),
+                    color = minuteHandColor,
+                    start = minStart,
+                    end = minEnd,
                     strokeWidth = 3.dp.toPx(),
                     cap = StrokeCap.Round
                 )
 
-                // Second Hand (Ticks once per second! Hidden in ambient mode)
+                // --- 3. SECOND HAND (Topmost layer, ticks once per second) ---
                 if (!isAmbient) {
                     val secAngle = (secs * 6.0 - 90.0) * (PI / 180.0)
                     val secLen = radius * 0.88f
                     val tailLen = radius * 0.16f
+                    val secStart = Offset(cx - cos(secAngle).toFloat() * tailLen, cy - sin(secAngle).toFloat() * tailLen)
+                    val secEnd = Offset(cx + cos(secAngle).toFloat() * secLen, cy + sin(secAngle).toFloat() * secLen)
+                    
+                    if (depthScale > 0f) {
+                        val sdx = 4.5.dp.toPx() * depthScale
+                        val sdy = 6.0.dp.toPx() * depthScale
+                        drawLine(
+                            color = Color.Black.copy(alpha = 0.35f),
+                            start = Offset(secStart.x + sdx, secStart.y + sdy),
+                            end = Offset(secEnd.x + sdx, secEnd.y + sdy),
+                            strokeWidth = 2.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
                     drawLine(
-                        color = GreenNeon,
-                        start = Offset(cx - cos(secAngle).toFloat() * tailLen, cy - sin(secAngle).toFloat() * tailLen),
-                        end = Offset(cx + cos(secAngle).toFloat() * secLen, cy + sin(secAngle).toFloat() * secLen),
+                        color = secondHandColor,
+                        start = secStart,
+                        end = secEnd,
                         strokeWidth = 1.5.dp.toPx(),
                         cap = StrokeCap.Round
                     )
                 }
 
-                // Center Pin
+                // Center Pin with 3D Shadow and Core
+                if (depthScale > 0f) {
+                    drawCircle(
+                        color = Color.Black.copy(alpha = 0.5f),
+                        radius = 4.5.dp.toPx(),
+                        center = Offset(cx + 2.dp.toPx() * depthScale, cy + 2.dp.toPx() * depthScale)
+                    )
+                }
                 drawCircle(
-                    color = if (isAmbient) Color.White else GreenNeon,
+                    color = if (isAmbient) Color.White else secondHandColor,
                     radius = 4.dp.toPx(),
                     center = Offset(cx, cy)
                 )
-            }
-
-            // Analog Bottom Battery Percent Text (if enabled)
-            if (wfConfig.showBattery) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .offset(y = 56.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "⚡ $batteryPercent%",
-                        color = if (isAmbient) Color.Gray else TextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
+                drawCircle(
+                    color = Color.White,
+                    radius = 1.5.dp.toPx(),
+                    center = Offset(cx, cy)
+                )
             }
 
         } else {
@@ -328,18 +417,6 @@ fun HudWatchFaceScreen(
                             modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
                         )
                     }
-                }
-
-                // Bottom Status: Battery & Navigation Guide
-                if (wfConfig.showBattery) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "⚡ $batteryPercent%",
-                        color = if (isAmbient) Color.Gray else TextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.Monospace
-                    )
                 }
 
                 if (!isAmbient) {
