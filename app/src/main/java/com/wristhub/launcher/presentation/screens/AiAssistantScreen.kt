@@ -3,6 +3,7 @@ package com.wristhub.launcher.presentation.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +45,7 @@ fun AiAssistantScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .clip(CircleShape)
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {

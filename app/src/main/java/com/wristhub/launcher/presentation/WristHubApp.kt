@@ -23,6 +23,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+
 @Composable
 fun WristHubApp(
     isAmbient: Boolean,
@@ -36,10 +40,17 @@ fun WristHubApp(
 
         if (isAmbient) {
             // In ambient mode, lock strictly to the minimalist HUD watchface
-            HudWatchFaceScreen(
-                isAmbient = true,
-                ambientUpdateTrigger = ambientUpdateTrigger
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .background(Color.Black)
+            ) {
+                HudWatchFaceScreen(
+                    isAmbient = true,
+                    ambientUpdateTrigger = ambientUpdateTrigger
+                )
+            }
         } else {
             // Interactive 3-page horizontal pager: Left = PC Remote, Center = HUD WatchFace, Right = AI
             val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
@@ -69,16 +80,40 @@ fun WristHubApp(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .clip(CircleShape)
                     .background(Color.Black)
             ) {
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize()
                 ) { page ->
-                    when (page) {
-                        0 -> PcRemoteScreen()
-                        1 -> HudWatchFaceScreen(isAmbient = false)
-                        2 -> AiAssistantScreen()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                val pageOffset = Math.abs(
+                                    (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                                )
+                                val clampedOffset = pageOffset.coerceIn(0f, 1f)
+
+                                // 1. Smooth dynamic scale transition (1.0 -> 0.82)
+                                val scale = 1f - 0.18f * clampedOffset
+                                scaleX = scale
+                                scaleY = scale
+
+                                // 2. Smooth fade transition (1.0 -> 0.20)
+                                alpha = 1f - 0.80f * clampedOffset
+
+                                // 3. Enforce strict circular boundary clipping per page
+                                clip = true
+                                shape = CircleShape
+                            }
+                    ) {
+                        when (page) {
+                            0 -> PcRemoteScreen()
+                            1 -> HudWatchFaceScreen(isAmbient = false)
+                            2 -> AiAssistantScreen()
+                        }
                     }
                 }
 
