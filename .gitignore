@@ -1,0 +1,66 @@
+﻿# ==========================================
+# Android & Gradle
+# ==========================================
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.idea/
+.kotlin/
+/build/
+/*/build/
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+
+# Signing keys & keystores (Security)
+*.jks
+*.keystore
+*.key
+*.pem
+*.p12
+
+# Android Studio / IntelliJ
+.shelf/
+assetCatalog/
+captures/
+.externalNativeBuild
+.cxx/
+
+# ==========================================
+# Python & Daemon
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+*.log
+
+# ==========================================
+# Sensitive & Secrets (Privacy & Security)
+# ==========================================
+secrets.properties
+credentials.json
+google-services.json
+api_key*
+*.env
+*.env.local
+
+# ==========================================
+# OS Generated Files
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
