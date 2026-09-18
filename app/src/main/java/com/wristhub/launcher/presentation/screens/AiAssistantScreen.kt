@@ -35,6 +35,7 @@ import com.wristhub.launcher.audio.AudioRecorderManager
 import com.wristhub.launcher.audio.WatchTtsManager
 import com.wristhub.launcher.data.AiConversation
 import com.wristhub.launcher.network.AiSyncManager
+import com.wristhub.launcher.network.PcWebSocketManager
 import com.wristhub.launcher.presentation.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -80,6 +81,7 @@ fun AiAssistantScreen(
     val isProcessing by AiSyncManager.isProcessing.collectAsState()
     val conversations by AiSyncManager.conversations.collectAsState()
     val isSpeaking by tts.isSpeaking.collectAsState()
+    val isPcConnected by PcWebSocketManager.isConnected.collectAsState()
 
     // Pulsing Animation for Siri / Gemini Glowing Aura
     val infiniteTransition = rememberInfiniteTransition(label = "SiriAura")
@@ -113,11 +115,12 @@ fun AiAssistantScreen(
         if (!isRecording) return
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         isRecording = false
-        statusText = "Gemini 正在分析語音..."
+        statusText = if (isPcConnected) "電腦正在處理語音..." else "直連 Gemini 分析中..."
         val recordedFile = recorder.stopRecording()
 
         if (recordedFile != null && recordedFile.exists()) {
             AiSyncManager.uploadAudio(
+                context = context,
                 audioFile = recordedFile,
                 onSuccess = { conv ->
                     statusText = "回答完成"
@@ -158,12 +161,21 @@ fun AiAssistantScreen(
                     Box(
                         modifier = Modifier
                             .size(6.dp)
-                            .background(if (isRecording) RedNeon else CyanNeon, CircleShape)
+                            .background(
+                                if (isRecording) RedNeon
+                                else if (isPcConnected) GreenNeon
+                                else CyanNeon,
+                                CircleShape
+                            )
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "GEMINI INTELLIGENCE",
-                        color = if (isRecording) RedNeon else CyanNeon,
+                        text = if (isRecording) "RECORDING..."
+                               else if (isPcConnected) "PC CONNECTED"
+                               else "STANDALONE AI",
+                        color = if (isRecording) RedNeon
+                                else if (isPcConnected) GreenNeon
+                                else CyanNeon,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
@@ -281,10 +293,16 @@ fun AiAssistantScreen(
                             .fillMaxWidth()
                             .padding(top = 10.dp, bottom = 4.dp)
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .background(if (isPcConnected) GreenNeon else CyanNeon, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "🤖 GEMINI INTELLIGENCE",
-                            color = CyanNeon,
-                            fontSize = 10.sp,
+                            text = if (isPcConnected) "GEMINI (PC LINK)" else "GEMINI (STANDALONE)",
+                            color = if (isPcConnected) GreenNeon else CyanNeon,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
                         )

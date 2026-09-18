@@ -602,6 +602,18 @@ async def save_ai_config(request: Request):
         cfg["gemini_model"] = data["gemini_model"].strip()
     save_config(cfg)
     await broadcast_log("AI", f"已更新 Gemini 設定: 模型 {cfg.get('gemini_model')}")
+    
+    if watch_websocket is not None:
+        try:
+            await watch_websocket.send_text(json.dumps({
+                "type": "SYNC_AI_CONFIG",
+                "api_key": cfg.get("gemini_api_key", ""),
+                "model": cfg.get("gemini_model", "gemini-3.5-flash-lite")
+            }))
+            await broadcast_log("AI", "已自動將最新 Gemini 金鑰同步至手錶！")
+        except Exception as e:
+            await broadcast_log("ERROR", f"同步 AI 設定給手錶失敗: {e}")
+            
     return {"status": "OK"}
 
 @app.post("/api/ai/voice")
@@ -797,6 +809,16 @@ async def watch_endpoint(websocket: WebSocket):
     cfg = load_config()
     await websocket.send_text(json.dumps({"type": "CONFIG", "buttons": cfg.get("buttons", [])}))
     
+    # Send Gemini AI config for standalone direct mode
+    ai_key = (cfg.get("gemini_api_key") or "").strip()
+    ai_model = cfg.get("gemini_model", "gemini-3.5-flash-lite")
+    if ai_key:
+        await websocket.send_text(json.dumps({
+            "type": "SYNC_AI_CONFIG",
+            "api_key": ai_key,
+            "model": ai_model
+        }))
+    
     wf_cfg = load_wf_config()
     bg_url = f"http://{get_local_ip()}:8765/static/custom_bg.webp" if wf_cfg.get("has_custom_bg") else None
     await websocket.send_text(json.dumps({
@@ -816,6 +838,14 @@ async def watch_endpoint(websocket: WebSocket):
                 if action == "GET_CONFIG":
                     current_cfg = load_config()
                     await websocket.send_text(json.dumps({"type": "CONFIG", "buttons": current_cfg.get("buttons", [])}))
+                    curr_ai_key = (current_cfg.get("gemini_api_key") or "").strip()
+                    curr_ai_model = current_cfg.get("gemini_model", "gemini-3.5-flash-lite")
+                    if curr_ai_key:
+                        await websocket.send_text(json.dumps({
+                            "type": "SYNC_AI_CONFIG",
+                            "api_key": curr_ai_key,
+                            "model": curr_ai_model
+                        }))
                     current_wf = load_wf_config()
                     b_url = f"http://{get_local_ip()}:8765/static/custom_bg.webp" if current_wf.get("has_custom_bg") else None
                     await websocket.send_text(json.dumps({"type": "WATCHFACE_UPDATE", "config": current_wf, "bg_url": b_url}))

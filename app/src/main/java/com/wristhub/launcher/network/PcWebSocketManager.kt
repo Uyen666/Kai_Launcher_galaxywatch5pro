@@ -109,6 +109,17 @@ object PcWebSocketManager {
                         if (bgUrl.isNotEmpty() && appContext != null) {
                             WatchFaceSyncManager.downloadBackground(appContext!!, bgUrl)
                         }
+                    } else if (msgType == "SYNC_AI_CONFIG") {
+                        val key = json.optString("api_key", "").trim()
+                        val model = json.optString("model", "gemini-3.5-flash-lite").trim()
+                        if (appContext != null && key.isNotEmpty()) {
+                            val prefs = appContext!!.getSharedPreferences("ai_prefs", Context.MODE_PRIVATE)
+                            prefs.edit()
+                                .putString("gemini_api_key", key)
+                                .putString("gemini_model", model)
+                                .apply()
+                            Log.d(TAG, "Synced Gemini AI config to local preferences (model: $model)")
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error parsing message: ${e.message}")
@@ -149,5 +160,15 @@ object PcWebSocketManager {
             _isConnected.value = false
             connect(currentPcIp)
         }
+    }
+
+    fun getStoredApiKey(context: Context): String {
+        val prefs = context.getSharedPreferences("ai_prefs", Context.MODE_PRIVATE)
+        return prefs.getString("gemini_api_key", "") ?: ""
+    }
+
+    fun getStoredModel(context: Context): String {
+        val prefs = context.getSharedPreferences("ai_prefs", Context.MODE_PRIVATE)
+        return prefs.getString("gemini_model", "gemini-3.5-flash-lite") ?: "gemini-3.5-flash-lite"
     }
 }
