@@ -1,4 +1,4 @@
-﻿package com.wristhub.launcher.presentation
+package com.wristhub.launcher.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -19,9 +19,14 @@ import com.wristhub.launcher.presentation.screens.HudWatchFaceScreen
 import com.wristhub.launcher.presentation.screens.PcRemoteScreen
 import com.wristhub.launcher.presentation.theme.WristHubTheme
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+
 @Composable
 fun WristHubApp(
-    isAmbient: Boolean
+    isAmbient: Boolean,
+    ambientUpdateTrigger: Long = 0L
 ) {
     WristHubTheme {
         // Automatically attempt connection to PC on app launch
@@ -31,10 +36,24 @@ fun WristHubApp(
 
         if (isAmbient) {
             // In ambient mode, lock strictly to the minimalist HUD watchface
-            HudWatchFaceScreen(isAmbient = true)
+            HudWatchFaceScreen(
+                isAmbient = true,
+                ambientUpdateTrigger = ambientUpdateTrigger
+            )
         } else {
             // Interactive 3-page horizontal pager: Left = PC Remote, Center = HUD WatchFace, Right = AI
             val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
+            val coroutineScope = rememberCoroutineScope()
+
+            // Safe Launcher BackHandler: If on Remote or AI, return to center WatchFace.
+            // If already on center WatchFace, consume back key so the app NEVER exits!
+            BackHandler(enabled = true) {
+                if (pagerState.currentPage != 1) {
+                    coroutineScope.launch {
+                        pagerState.animateScrollToPage(1)
+                    }
+                }
+            }
 
             val pageIndicatorState = remember(pagerState) {
                 object : PageIndicatorState {

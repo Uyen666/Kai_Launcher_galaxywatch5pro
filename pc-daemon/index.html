@@ -163,12 +163,12 @@
                 </div>
                 
                 <div class="flex items-center gap-2">
-                  <input type="file" id="bgFileInput" accept="image/*" class="hidden" onchange="handleBgUpload(this)" />
-                  <button onclick="document.getElementById('bgFileInput').click()" class="flex-1 py-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white rounded-lg border border-slate-700 transition">
-                    📁 選擇個人照片
+                  <input type="file" id="bgFileInput" accept="image/*,video/mp4,video/webm,video/quicktime,.gif,.mp4,.webm,.mov" class="hidden" onchange="handleBgUpload(this)" />
+                  <button onclick="document.getElementById('bgFileInput').click()" class="flex-1 py-1.5 px-2.5 bg-gradient-to-r from-cyan-600/30 to-blue-600/30 hover:from-cyan-500/40 hover:to-blue-500/40 text-xs font-semibold text-cyan-200 rounded-lg border border-cyan-500/40 transition flex items-center justify-center gap-1.5 shadow-sm">
+                    <span>🎬 選擇照片 / GIF / 短影音(MP4)</span>
                   </button>
-                  <button onclick="resetBg()" class="py-1 px-2.5 bg-slate-800/60 hover:bg-slate-800 text-[11px] text-rose-400 rounded-lg border border-slate-800 transition">
-                    移除背景
+                  <button onclick="resetBg()" class="py-1.5 px-2.5 bg-slate-800/60 hover:bg-slate-800 text-[11px] text-rose-400 rounded-lg border border-slate-800 transition">
+                    移除
                   </button>
                 </div>
 
@@ -967,18 +967,22 @@
       formData.append('file', file);
 
       const stateLabel = document.getElementById('uploadState');
-      stateLabel.innerText = "⏳ 裁切轉碼上傳中...";
+      const isVideo = file.type.startsWith('video') || file.name.toLowerCase().endsWith('.gif') || file.name.toLowerCase().endsWith('.mp4') || file.name.toLowerCase().endsWith('.webm');
+      stateLabel.innerText = isVideo ? "⏳ 影音智慧轉碼 450x450 WebP 中..." : "⏳ 裁切轉碼上傳中...";
 
       try {
         const res = await fetch('/api/upload-bg', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.status === 'OK') {
-          stateLabel.innerText = "✅ 已上傳並通知手錶下載！";
+          stateLabel.innerText = data.is_animated ? "✅ 動態桌布已同步至手錶！" : "✅ 靜態桌布已同步至手錶！";
           currentWfConfig.has_custom_bg = true;
           const bgImg = document.getElementById('previewBgImg');
           bgImg.src = `${data.bg_url}&r=${Date.now()}`;
           bgImg.classList.remove('hidden');
-          addLog("WATCHFACE", `背景圖片已上傳並轉碼為 450x450 WebP！`);
+          addLog("WATCHFACE", `背景已成功壓製為 450x450 ${data.is_animated ? '動態 WebP' : 'WebP'}！`);
+        } else {
+          stateLabel.innerText = "❌ 轉碼失敗";
+          addLog("ERROR", `轉碼失敗: ${data.msg || '未知錯誤'}`);
         }
       } catch (err) {
         stateLabel.innerText = "❌ 上傳失敗";

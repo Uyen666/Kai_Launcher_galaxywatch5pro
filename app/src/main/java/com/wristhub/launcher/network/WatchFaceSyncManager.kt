@@ -1,4 +1,4 @@
-﻿package com.wristhub.launcher.network
+package com.wristhub.launcher.network
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -31,6 +31,9 @@ object WatchFaceSyncManager {
 
     private val _cachedBgBitmap = MutableStateFlow<Bitmap?>(null)
     val cachedBgBitmap: StateFlow<Bitmap?> = _cachedBgBitmap.asStateFlow()
+
+    private val _bgVersion = MutableStateFlow(System.currentTimeMillis())
+    val bgVersion: StateFlow<Long> = _bgVersion.asStateFlow()
 
     fun init(context: Context) {
         scope.launch {
@@ -95,6 +98,7 @@ object WatchFaceSyncManager {
                         // Decode immediately into in-memory bitmap for 0ms transitions
                         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                         _cachedBgBitmap.value = bitmap
+                        _bgVersion.value = System.currentTimeMillis()
                         Log.d(TAG, "Successfully saved and cached custom background (${bytes.size} bytes)")
                         
                         // Update config to hasCustomBg = true

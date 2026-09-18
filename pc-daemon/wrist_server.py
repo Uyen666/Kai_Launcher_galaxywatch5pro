@@ -11,7 +11,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
+from PIL import Image, ImageSequence
+import tempfile
+import imageio
 import uvicorn
 
 # Windows Virtual Key Codes
@@ -286,33 +288,115 @@ async def api_save_wf_config(request: Request):
 @app.post("/api/upload-bg")
 async def api_upload_bg(file: UploadFile = File(...)):
     contents = await file.read()
-    image = Image.open(io.BytesIO(contents))
-    
-    # Ensure format with alpha or RGB
-    if image.mode not in ("RGB", "RGBA"):
-        image = image.convert("RGBA")
-        
-    # Center crop to 1:1 square
-    w, h = image.size
-    min_dim = min(w, h)
-    left = (w - min_dim) // 2
-    top = (h - min_dim) // 2
-    cropped = image.crop((left, top, left + min_dim, top + min_dim))
-    
-    # Resize to Galaxy Watch 5 Pro 450x450
-    resized = cropped.resize((450, 450), Image.Resampling.LANCZOS)
-    
+    filename = file.filename or "upload.png"
+    lower_name = filename.lower()
+    is_video = lower_name.endswith((".mp4", ".webm", ".mov", ".avi", ".mkv")) or (file.content_type and "video" in file.content_type)
+    is_gif = lower_name.endswith(".gif") or (file.content_type and "gif" in file.content_type)
     out_path = os.path.join(STATIC_DIR, "custom_bg.webp")
-    resized.save(out_path, "WEBP", quality=85)
-    
-    wf_cfg = load_wf_config()
-    wf_cfg["has_custom_bg"] = True
-    save_wf_config(wf_cfg)
-    
-    bg_url = f"http://{get_local_ip()}:8765/static/custom_bg.webp?t={int(datetime.datetime.now().timestamp())}"
-    await broadcast_watchface_update(wf_cfg, bg_url)
-    await broadcast_log("WATCHFACE", f"成功裁切並轉碼為 450x450 WebP！已通知手錶下載：{bg_url}")
-    return {"status": "OK", "bg_url": bg_url}
+
+    try:
+        if is_video:
+            await broadcast_log("WATCHFACE", f"偵測到影片檔案 ({filename})，開始抽幀裁切並轉碼為動態 WebP...")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as tmp:
+                tmp.write(contents)
+                tmp_path = tmp.name
+            try:
+                reader = imageio.get_reader(tmp_path, 'ffmpeg')
+                meta = reader.get_meta_data()
+                fps = meta.get('fps', 20) or 20
+                # Target 15 fps, max 45 frames (3 seconds loop)
+                step = max(1, int(round(fps / 15)))
+                frames = []
+                for idx, frame in enumerate(reader):
+                    if idx % step != 0:
+                        continue
+                    img = Image.fromarray(frame)
+                    if img.mode not in ("RGB", "RGBA"):
+                        img = img.convert("RGB")
+                    w, h = img.size
+                    min_dim = min(w, h)
+                    left = (w - min_dim) // 2
+                    top = (h - min_dim) // 2
+                    cropped = img.crop((left, top, left + min_dim, top + min_dim))
+                    resized = cropped.resize((450, 450), Image.Resampling.LANCZOS)
+                    frames.append(resized)
+                    if len(frames) >= 45:
+                        break
+                reader.close()
+                if frames:
+                    frame_duration = int(1000 / 15)
+                    frames[0].save(
+                        out_path,
+                        "WEBP",
+                        save_all=True,
+                        append_images=frames[1:],
+                        duration=frame_duration,
+                        loop=0,
+                        quality=75,
+                        method=6
+                    )
+            finally:
+                if os.path.exists(tmp_path):
+                    try:
+                        os.remove(tmp_path)
+                    except Exception:
+                        pass
+        elif is_gif:
+            await broadcast_log("WATCHFACE", f"偵測到 GIF 動畫 ({filename})，開始處理動態幀...")
+            gif = Image.open(io.BytesIO(contents))
+            frames = []
+            durations = []
+            for idx, frame in enumerate(ImageSequence.Iterator(gif)):
+                if getattr(gif, "n_frames", 1) > 60 and idx % 2 != 0:
+                    continue
+                frame_img = frame.convert("RGBA")
+                w, h = frame_img.size
+                min_dim = min(w, h)
+                left = (w - min_dim) // 2
+                top = (h - min_dim) // 2
+                cropped = frame_img.crop((left, top, left + min_dim, top + min_dim))
+                resized = cropped.resize((450, 450), Image.Resampling.LANCZOS)
+                frames.append(resized)
+                dur = frame.info.get("duration", 100) or 100
+                durations.append(dur)
+                if len(frames) >= 50:
+                    break
+            if frames:
+                avg_duration = sum(durations) // len(durations) if durations else 100
+                frames[0].save(
+                    out_path,
+                    "WEBP",
+                    save_all=True,
+                    append_images=frames[1:],
+                    duration=avg_duration,
+                    loop=0,
+                    quality=75,
+                    method=6
+                )
+        else:
+            image = Image.open(io.BytesIO(contents))
+            if image.mode not in ("RGB", "RGBA"):
+                image = image.convert("RGBA")
+            w, h = image.size
+            min_dim = min(w, h)
+            left = (w - min_dim) // 2
+            top = (h - min_dim) // 2
+            cropped = image.crop((left, top, left + min_dim, top + min_dim))
+            resized = cropped.resize((450, 450), Image.Resampling.LANCZOS)
+            resized.save(out_path, "WEBP", quality=85)
+
+        wf_cfg = load_wf_config()
+        wf_cfg["has_custom_bg"] = True
+        save_wf_config(wf_cfg)
+
+        bg_url = f"http://{get_local_ip()}:8765/static/custom_bg.webp?t={int(datetime.datetime.now().timestamp())}"
+        await broadcast_watchface_update(wf_cfg, bg_url)
+        file_type_str = "動態影音" if (is_video or is_gif) else "靜態圖片"
+        await broadcast_log("WATCHFACE", f"成功轉碼為 450x450 {file_type_str} WebP！已通知手錶下載：{bg_url}")
+        return {"status": "OK", "bg_url": bg_url, "is_animated": (is_video or is_gif)}
+    except Exception as e:
+        await broadcast_log("ERROR", f"背景轉碼失敗: {e}")
+        return JSONResponse(status_code=500, content={"status": "ERROR", "msg": str(e)})
 
 @app.websocket("/ws/dashboard")
 async def dashboard_endpoint(websocket: WebSocket):

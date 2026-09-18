@@ -10,6 +10,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.BatteryManager
+import android.os.Build
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -30,6 +31,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Text
+import coil.ImageLoader
+import coil.compose.AsyncImage
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import coil.request.CachePolicy
+import coil.request.ImageRequest
+import java.io.File
 import com.wristhub.launcher.network.PcWebSocketManager
 import com.wristhub.launcher.network.WatchFaceSyncManager
 import com.wristhub.launcher.presentation.theme.*
@@ -43,6 +51,7 @@ import kotlin.math.sin
 @Composable
 fun HudWatchFaceScreen(
     isAmbient: Boolean,
+    ambientUpdateTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -52,6 +61,19 @@ fun HudWatchFaceScreen(
 
     val wfConfig by WatchFaceSyncManager.config.collectAsState()
     val cachedBgBitmap by WatchFaceSyncManager.cachedBgBitmap.collectAsState()
+    val bgVersion by WatchFaceSyncManager.bgVersion.collectAsState()
+
+    val imageLoader = remember {
+        ImageLoader.Builder(context)
+            .components {
+                if (Build.VERSION.SDK_INT >= 28) {
+                    add(ImageDecoderDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
+            }
+            .build()
+    }
 
     val clockColor = remember(wfConfig.clockColorHex) {
         try {
@@ -173,11 +195,22 @@ fun HudWatchFaceScreen(
         }
     }
 
-    // Clock update loop: 1 second in active, 30s in ambient
+    // Clock update loop: 1 second in active mode
     LaunchedEffect(isAmbient) {
-        while (true) {
+        if (!isAmbient) {
+            while (true) {
+                currentTime = Calendar.getInstance().time
+                delay(1000L)
+            }
+        } else {
             currentTime = Calendar.getInstance().time
-            delay(if (isAmbient) 30000L else 1000L)
+        }
+    }
+
+    // In ambient mode, update time on every system RTC wake trigger (~1/minute)
+    LaunchedEffect(ambientUpdateTrigger) {
+        if (isAmbient && ambientUpdateTrigger > 0L) {
+            currentTime = Calendar.getInstance().time
         }
     }
 
@@ -206,10 +239,17 @@ fun HudWatchFaceScreen(
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        // 1. Background Layer: In ambient mode, keep black for OLED efficiency. In active mode, render cached bitmap!
-        if (!isAmbient && wfConfig.hasCustomBg && cachedBgBitmap != null) {
-            Image(
-                bitmap = cachedBgBitmap!!.asImageBitmap(),
+        // 1. Background Layer: In ambient mode, keep black for OLED efficiency. In active mode, render animated or static WebP!
+        val bgFile = remember(bgVersion) { File(context.filesDir, "custom_bg.webp") }
+        if (!isAmbient && wfConfig.hasCustomBg && bgFile.exists()) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(bgFile)
+                    .memoryCacheKey("bg_$bgVersion")
+                    .diskCachePolicy(CachePolicy.DISABLED)
+                    .crossfade(false)
+                    .build(),
+                imageLoader = imageLoader,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()

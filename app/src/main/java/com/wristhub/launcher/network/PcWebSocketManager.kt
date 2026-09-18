@@ -1,11 +1,15 @@
-﻿package com.wristhub.launcher.network
+package com.wristhub.launcher.network
 
 import android.content.Context
 import android.util.Log
 import com.wristhub.launcher.data.WatchFaceConfig
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import okhttp3.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,6 +26,7 @@ object PcWebSocketManager {
     private const val TAG = "PcWebSocket"
     private const val DEFAULT_PORT = 8765
 
+    private val scope = CoroutineScope(Dispatchers.IO)
     private val client = OkHttpClient.Builder()
         .readTimeout(3, TimeUnit.SECONDS)
         .connectTimeout(3, TimeUnit.SECONDS)
@@ -116,8 +121,12 @@ object PcWebSocketManager {
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                Log.w(TAG, "WebSocket failure: ${t.message}")
+                Log.w(TAG, "WebSocket failure: ${t.message}. Retrying in 3s...")
                 _isConnected.value = false
+                scope.launch {
+                    delay(3000L)
+                    connect(currentPcIp)
+                }
             }
         })
     }
