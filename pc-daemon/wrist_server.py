@@ -15,6 +15,9 @@ from PIL import Image, ImageSequence
 import tempfile
 import imageio
 import uvicorn
+import base64
+import urllib.request
+import urllib.error
 
 # Windows Virtual Key Codes
 VK_VOLUME_MUTE = 0xAD
@@ -397,6 +400,240 @@ async def api_upload_bg(file: UploadFile = File(...)):
     except Exception as e:
         await broadcast_log("ERROR", f"背景轉碼失敗: {e}")
         return JSONResponse(status_code=500, content={"status": "ERROR", "msg": str(e)})
+
+# ============================================================
+# Gemini AI Assistant Endpoints
+# ============================================================
+
+AI_SYSTEM_INSTRUCTION = """
+你是一個專為 Samsung Galaxy Watch 5 Pro 設計的手腕 Siri / Intelligence 語音助理 (WristHub Assistant)。
+使用者對手錶說了一段話，請完成以下任務：
+1. 完整辨識使用者說的話 (transcript)。
+2. 判斷是否有對 Windows 電腦的操作意圖 (action)。
+   支援的 action 代碼有：
+   - MUTE_TOGGLE (靜音 / 取消靜音)
+   - VOLUME_UP (音量加大)
+   - VOLUME_DOWN (音量降低)
+   - PLAY_PAUSE (播放 / 暫停音樂或影片)
+   - NEXT_TRACK (下一首 / 簡報下一頁)
+   - PREV_TRACK (上一首 / 簡報上一頁)
+   - LOCK_PC (鎖定電腦)
+   - SHOW_DESKTOP (顯示桌面)
+   - OPEN_NOTEPAD (打開記事本)
+   - OPEN_CALC (打開計算機)
+   - NONE (一般提問、查資料、天氣、閒聊，不需要電腦硬體操作)
+3. 給予繁體中文回答 (reply)。
+   - 語氣自然、親切、口語化，適合在智慧手錶小螢幕閱讀與手錶揚聲器語音朗讀（繁體中文，約 25~50 個字，語意完整重點清晰）。
+   - 如果是電腦指令，回答例如：「已為您靜音電腦」、「已加大音量」。
+   - 如果是資料查詢（天氣、常識、計算、資訊），直接回答精確重點。
+
+請務必嚴格輸出符合以下結構的 JSON：
+{
+  "transcript": "使用者說的原始文字",
+  "action": "ACTION_CODE",
+  "reply": "繁體中文回覆"
+}
+"""
+
+def execute_ai_action(action_code: str):
+    if not action_code or action_code == "NONE":
+        return None
+    code = action_code.strip().upper()
+    if code in ["MUTE_TOGGLE", "MUTE"]:
+        return execute_action("SYSTEM_VOLUME", "MUTE_TOGGLE")
+    elif code in ["VOLUME_UP", "VOL_UP"]:
+        return execute_action("SYSTEM_VOLUME", "VOLUME_UP")
+    elif code in ["VOLUME_DOWN", "VOL_DOWN"]:
+        return execute_action("SYSTEM_VOLUME", "VOLUME_DOWN")
+    elif code in ["PLAY_PAUSE", "PLAY", "PAUSE"]:
+        return execute_action("MEDIA", "PLAY_PAUSE")
+    elif code in ["NEXT_TRACK", "PPT_NEXT"]:
+        return execute_action("MEDIA", "PPT_NEXT")
+    elif code in ["PREV_TRACK", "PPT_PREV"]:
+        return execute_action("MEDIA", "PPT_PREV")
+    elif code in ["LOCK_PC", "LOCK"]:
+        return execute_action("SYSTEM_ACTION", "LOCK_PC")
+    elif code in ["SHOW_DESKTOP", "DESKTOP"]:
+        return execute_action("SYSTEM_ACTION", "SHOW_DESKTOP")
+    elif code in ["OPEN_NOTEPAD", "NOTEPAD"]:
+        return execute_action("CMD", "notepad.exe")
+    elif code in ["OPEN_CALC", "CALC", "CALCULATOR"]:
+        return execute_action("CMD", "calc.exe")
+    return None
+
+def call_gemini_api(parts: list, api_key: str, model: str = "gemini-1.5-flash") -> dict:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    payload = {
+        "contents": [
+            {
+                "parts": parts
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.2,
+            "response_mime_type": "application/json"
+        }
+    }
+    
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+    
+    with urllib.request.urlopen(req, timeout=25) as resp:
+        res_data = json.loads(resp.read().decode("utf-8"))
+        
+    candidates = res_data.get("candidates", [])
+    if candidates:
+        content = candidates[0].get("content", {})
+        parts_list = content.get("parts", [])
+        if parts_list:
+            text_json = parts_list[0].get("text", "{}")
+            return json.loads(text_json)
+            
+    return {"transcript": "語音解析失敗", "action": "NONE", "reply": "抱歉，目前無法理解這段語音。"}
+
+@app.get("/api/ai/config")
+async def get_ai_config():
+    cfg = load_config()
+    key = cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
+    masked_key = (key[:6] + "..." + key[-4:]) if len(key) > 10 else ("已設定" if key else "")
+    return {
+        "has_key": bool(key),
+        "masked_key": masked_key,
+        "model": cfg.get("gemini_model", "gemini-1.5-flash")
+    }
+
+@app.post("/api/ai/config")
+async def save_ai_config(request: Request):
+    data = await request.json()
+    cfg = load_config()
+    if "gemini_api_key" in data and data["gemini_api_key"].strip():
+        cfg["gemini_api_key"] = data["gemini_api_key"].strip()
+    if "gemini_model" in data and data["gemini_model"].strip():
+        cfg["gemini_model"] = data["gemini_model"].strip()
+    save_config(cfg)
+    await broadcast_log("AI", f"已更新 Gemini 設定: 模型 {cfg.get('gemini_model')}")
+    return {"status": "OK"}
+
+@app.post("/api/ai/voice")
+async def process_ai_voice(file: UploadFile = File(...)):
+    cfg = load_config()
+    api_key = cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
+    model = cfg.get("gemini_model", "gemini-1.5-flash")
+    
+    if not api_key:
+        msg = "請至電腦 Web 控制台 (http://localhost:8765) 的「🤖 Gemini AI 設定」輸入您的 API 金鑰！"
+        await broadcast_log("AI", "收到語音但未設定 Gemini API Key")
+        return JSONResponse({
+            "status": "NO_KEY",
+            "transcript": "(尚未設定金鑰)",
+            "reply": msg,
+            "action": "NONE",
+            "action_result": None
+        })
+        
+    try:
+        audio_bytes = await file.read()
+        mime_type = file.content_type or "audio/mp4"
+        if not mime_type or mime_type == "application/octet-stream":
+            mime_type = "audio/mp4"
+            
+        await broadcast_log("AI", f"接收到手錶語音音訊 ({len(audio_bytes)} bytes)，正在請求 Gemini ({model}) 解析...")
+        
+        b64_audio = base64.b64encode(audio_bytes).decode("utf-8")
+        parts = [
+            {
+                "inline_data": {
+                    "mime_type": mime_type,
+                    "data": b64_audio
+                }
+            },
+            {
+                "text": AI_SYSTEM_INSTRUCTION
+            }
+        ]
+        
+        t0 = datetime.datetime.now()
+        ai_res = call_gemini_api(parts, api_key, model)
+        elapsed_ms = (datetime.datetime.now() - t0).total_seconds() * 1000
+        
+        transcript = ai_res.get("transcript", "")
+        action = ai_res.get("action", "NONE")
+        reply = ai_res.get("reply", "")
+        
+        action_result = execute_ai_action(action)
+        
+        await broadcast_log("AI", f"🗣️ [{transcript}] -> 🤖 {reply} (動作: {action_result or action}, 耗時 {elapsed_ms:.0f}ms)")
+        
+        # Broadcast conversation card to web dashboard
+        card_payload = json.dumps({
+            "type": "AI_CARD",
+            "transcript": transcript,
+            "reply": reply,
+            "action": action,
+            "action_result": action_result,
+            "time": datetime.datetime.now().strftime("%H:%M:%S")
+        })
+        for ws in dashboard_websockets:
+            try:
+                await ws.send_text(card_payload)
+            except Exception:
+                pass
+                
+        return {
+            "status": "SUCCESS",
+            "transcript": transcript,
+            "reply": reply,
+            "action": action,
+            "action_result": action_result
+        }
+    except Exception as e:
+        err_msg = f"Gemini 處理失敗: {str(e)}"
+        await broadcast_log("AI", f"❌ {err_msg}")
+        return JSONResponse(status_code=500, content={
+            "status": "ERROR",
+            "transcript": "處理出錯",
+            "reply": f"連線異常: {str(e)[:60]}",
+            "action": "NONE",
+            "action_result": None
+        })
+
+@app.post("/api/ai/text")
+async def process_ai_text(request: Request):
+    cfg = load_config()
+    api_key = cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
+    model = cfg.get("gemini_model", "gemini-1.5-flash")
+    data = await request.json()
+    prompt = data.get("prompt", "")
+    
+    if not api_key:
+        return JSONResponse({
+            "status": "NO_KEY",
+            "transcript": prompt,
+            "reply": "請先設定 Gemini API Key！",
+            "action": "NONE"
+        })
+        
+    parts = [
+        {"text": f"使用者指令/提問：{prompt}"},
+        {"text": AI_SYSTEM_INSTRUCTION}
+    ]
+    ai_res = call_gemini_api(parts, api_key, model)
+    action = ai_res.get("action", "NONE")
+    action_result = execute_ai_action(action)
+    transcript = ai_res.get("transcript", prompt)
+    reply = ai_res.get("reply", "")
+    await broadcast_log("AI", f"Web 測試 🗣️ [{transcript}] -> 🤖 {reply}")
+    return {
+        "status": "SUCCESS",
+        "transcript": transcript,
+        "reply": reply,
+        "action": action,
+        "action_result": action_result
+    }
 
 @app.websocket("/ws/dashboard")
 async def dashboard_endpoint(websocket: WebSocket):

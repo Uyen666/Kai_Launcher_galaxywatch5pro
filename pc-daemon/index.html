@@ -53,6 +53,9 @@
         <button id="tabButtonsBtn" onclick="switchTab('buttons')" class="px-3.5 py-1.5 rounded-lg font-semibold text-slate-300 hover:text-white transition">
           🎛️ 遙控按鍵映射
         </button>
+        <button id="tabAiBtn" onclick="switchTab('ai')" class="px-3.5 py-1.5 rounded-lg font-semibold text-slate-300 hover:text-white transition">
+          🤖 Gemini AI 設定
+        </button>
       </div>
 
       <!-- Live Status Indicators -->
@@ -494,6 +497,80 @@
         </div>
       </div>
 
+      <!-- ================= TAB 3: GEMINI AI SETTINGS ================= -->
+      <div id="tabAi" class="hidden flex-col gap-4">
+        <div class="bg-darkCard border border-slate-800/80 rounded-2xl p-5 shadow-xl">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div>
+              <h2 class="font-bold text-sm text-white flex items-center gap-2">
+                <span class="text-emerald-400">🤖</span> Gemini AI 手腕隨身助理設定
+              </h2>
+              <p class="text-xs text-slate-400 mt-0.5">提供智慧手錶 Siri Intelligence 級語音識別、查資料與電腦控制！</p>
+            </div>
+            <button id="saveAiBtn" onclick="saveAiConfig()" class="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-black font-bold text-xs rounded-xl shadow-[0_0_15px_rgba(0,230,118,0.3)] transition active:scale-95">
+              <span>💾 儲存 AI 設定</span>
+            </button>
+          </div>
+
+          <div class="flex flex-col gap-4 mt-4">
+            <!-- API Key Input -->
+            <div class="flex flex-col gap-1.5">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  🔑 Google Gemini API Key
+                  <span id="aiKeyStatusBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">檢查中...</span>
+                </label>
+                <a href="https://aistudio.google.com/apikey" target="_blank" class="text-[11px] text-cyan-400 hover:underline">取得免費 API Key ↗</a>
+              </div>
+              <div class="relative flex items-center">
+                <input id="aiApiKeyInput" type="password" placeholder="貼上您的 AIzaSy... 金鑰" class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-xs text-white font-mono outline-none transition pr-16" />
+                <button type="button" onclick="toggleKeyVisibility()" class="absolute right-2 px-2 py-1 text-[10px] text-slate-400 hover:text-white bg-slate-800 rounded">顯示</button>
+              </div>
+            </div>
+
+            <!-- Model Selection -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-semibold text-slate-300">🧠 AI 模型選擇</label>
+                <select id="aiModelSelect" class="bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-xs text-white outline-none transition">
+                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (最快、最省電推薦)</option>
+                  <option value="gemini-2.0-flash">Gemini 2.0 Flash (最新極速版)</option>
+                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (深度推理)</option>
+                </select>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-semibold text-slate-300">⚡ 支援的電腦語音控制</label>
+                <div class="text-[11px] text-slate-400 bg-slate-900/60 border border-slate-800 rounded-xl p-2 font-mono">
+                  靜音、大小音量、播放/暫停、簡報翻頁、鎖定電腦、開記事本/計算機
+                </div>
+              </div>
+            </div>
+
+            <!-- Test Box -->
+            <div class="mt-2 pt-3 border-t border-slate-800 flex flex-col gap-2">
+              <label class="text-xs font-semibold text-slate-300">🧪 模擬手腕語音提問測試</label>
+              <div class="flex items-center gap-2">
+                <input id="aiTestInput" type="text" placeholder="例如：把電腦靜音、明天台北天氣如何？" class="flex-1 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-xs text-white outline-none transition" onkeydown="if(event.key==='Enter') testAiQuery()" />
+                <button onclick="testAiQuery()" id="aiTestBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition">
+                  發送測試
+                </button>
+              </div>
+            </div>
+
+            <!-- Recent AI Cards -->
+            <div class="flex flex-col gap-2 mt-2">
+              <div class="flex items-center justify-between text-xs text-slate-400">
+                <span>💬 即時對話卡片記錄</span>
+                <span id="aiCardCount" class="text-[10px] font-mono text-slate-500">0 則對話</span>
+              </div>
+              <div id="aiCardList" class="flex flex-col gap-2.5 max-h-72 overflow-y-auto pr-1">
+                <div class="text-center py-6 text-slate-500 text-xs font-mono">// 尚未有手錶語音對話記錄</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- Right Column (5 cols): Live Debugger & Console -->
@@ -551,21 +628,26 @@
 
     // Tabs switching
     function switchTab(tab) {
-      const isWf = tab === 'watchface';
-      document.getElementById('tabWatchface').classList.toggle('hidden', !isWf);
-      document.getElementById('tabButtons').classList.toggle('hidden', isWf);
+      document.getElementById('tabWatchface').classList.toggle('hidden', tab !== 'watchface');
+      document.getElementById('tabButtons').classList.toggle('hidden', tab !== 'buttons');
+      document.getElementById('tabAi').classList.toggle('hidden', tab !== 'ai');
 
-      document.getElementById('tabWfBtn').className = isWf
-        ? 'px-3.5 py-1.5 rounded-lg font-semibold transition bg-cyan-500 text-black shadow-md'
-        : 'px-3.5 py-1.5 rounded-lg font-semibold text-slate-300 hover:text-white transition';
-      document.getElementById('tabButtonsBtn').className = !isWf
-        ? 'px-3.5 py-1.5 rounded-lg font-semibold transition bg-cyan-500 text-black shadow-md'
-        : 'px-3.5 py-1.5 rounded-lg font-semibold text-slate-300 hover:text-white transition';
+      const activeClass = 'px-3.5 py-1.5 rounded-lg font-semibold transition bg-cyan-500 text-black shadow-md';
+      const inactiveClass = 'px-3.5 py-1.5 rounded-lg font-semibold text-slate-300 hover:text-white transition';
+
+      document.getElementById('tabWfBtn').className = tab === 'watchface' ? activeClass : inactiveClass;
+      document.getElementById('tabButtonsBtn').className = tab === 'buttons' ? activeClass : inactiveClass;
+      document.getElementById('tabAiBtn').className = tab === 'ai' ? activeClass : inactiveClass;
+
+      if (tab === 'ai') {
+        loadAiConfig();
+      }
     }
 
     // Load initial configs
     async function init() {
       try {
+        loadAiConfig();
         const resBtn = await fetch('/api/config');
         currentConfig = await resBtn.json();
         renderButtons();
@@ -1271,6 +1353,8 @@
           updateWatchStatus(data.watch_connected, data.watch_ip, data.watch_battery);
         } else if (data.type === "LOG") {
           addLog(data.category, data.message, data.time);
+        } else if (data.type === "AI_CARD") {
+          addAiCard(data);
         }
       };
       dashboardWs.onclose = () => setTimeout(connectDashboardWs, 2000);
@@ -1297,14 +1381,16 @@
 
     function addLog(category, msg, time = null) {
       const box = document.getElementById('consoleLog');
+      const timeStr = time || new Date().toTimeString().split(' ')[0];
       const line = document.createElement('div');
-      const timeStr = time || new Date().toLocaleTimeString();
+      line.className = "text-[11px] leading-relaxed";
 
       let tagColor = "text-slate-400";
       if (category === "CLICK") tagColor = "text-cyan-400 font-bold";
       else if (category === "ROTARY") tagColor = "text-amber-400 font-bold";
       else if (category === "CONNECT") tagColor = "text-emerald-400 font-bold";
       else if (category === "WATCHFACE") tagColor = "text-purple-400 font-bold";
+      else if (category === "AI") tagColor = "text-emerald-400 font-bold";
       else if (category === "ERROR") tagColor = "text-rose-400 font-bold";
 
       line.innerHTML = `<span class="text-slate-600">[${timeStr}]</span> <span class="${tagColor}">[${category}]</span> <span class="text-slate-200">${msg}</span>`;
@@ -1314,6 +1400,129 @@
 
     function clearLogs() {
       document.getElementById('consoleLog').innerHTML = '';
+    }
+
+    // ==========================================
+    // Gemini AI Management
+    // ==========================================
+    let aiConversationCount = 0;
+
+    async function loadAiConfig() {
+      try {
+        const res = await fetch('/api/ai/config');
+        const data = await res.json();
+        const badge = document.getElementById('aiKeyStatusBadge');
+        if (data.has_key) {
+          badge.className = "text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono";
+          badge.innerText = `已綁定 (${data.masked_key})`;
+        } else {
+          badge.className = "text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30";
+          badge.innerText = "尚未設定金鑰";
+        }
+        if (data.model) {
+          document.getElementById('aiModelSelect').value = data.model;
+        }
+      } catch (e) {
+        console.error("Failed to load AI config:", e);
+      }
+    }
+
+    async function saveAiConfig() {
+      const key = document.getElementById('aiApiKeyInput').value.trim();
+      const model = document.getElementById('aiModelSelect').value;
+      const payload = { gemini_model: model };
+      if (key) payload.gemini_api_key = key;
+
+      try {
+        const res = await fetch('/api/ai/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          addLog("AI", `✅ Gemini 設定已儲存 (模型: ${model})`);
+          document.getElementById('aiApiKeyInput').value = "";
+          await loadAiConfig();
+          alert("Gemini 設定已成功儲存！手錶隨時可使用語音助理。");
+        }
+      } catch (e) {
+        addLog("ERROR", `儲存 AI 設定失敗: ${e}`);
+      }
+    }
+
+    function toggleKeyVisibility() {
+      const input = document.getElementById('aiApiKeyInput');
+      input.type = input.type === "password" ? "text" : "password";
+    }
+
+    async function testAiQuery() {
+      const input = document.getElementById('aiTestInput');
+      const prompt = input.value.trim();
+      if (!prompt) return;
+
+      const btn = document.getElementById('aiTestBtn');
+      btn.disabled = true;
+      btn.innerText = "思考中...";
+
+      try {
+        const res = await fetch('/api/ai/text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: prompt })
+        });
+        const data = await res.json();
+        if (data.status === "NO_KEY") {
+          alert(data.reply);
+        } else {
+          addAiCard({
+            transcript: data.transcript || prompt,
+            reply: data.reply,
+            action: data.action,
+            action_result: data.action_result,
+            time: new Date().toLocaleTimeString()
+          });
+          input.value = "";
+        }
+      } catch (e) {
+        addLog("ERROR", `AI 測試失敗: ${e}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "發送測試";
+      }
+    }
+
+    function addAiCard(card) {
+      const list = document.getElementById('aiCardList');
+      if (aiConversationCount === 0) {
+        list.innerHTML = "";
+      }
+      aiConversationCount++;
+      document.getElementById('aiCardCount').innerText = `${aiConversationCount} 則對話`;
+
+      const cardEl = document.createElement('div');
+      cardEl.className = "p-3 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col gap-1.5 shadow-md";
+      
+      let actionBadge = "";
+      if (card.action && card.action !== "NONE") {
+        actionBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">⚡ 動作: ${card.action_result || card.action}</span>`;
+      }
+
+      cardEl.innerHTML = `
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span class="font-semibold text-cyan-400 flex items-center gap-1">🗣️ <span>${escapeHtml(card.transcript)}</span></span>
+          <span class="font-mono text-[10px] text-slate-500">${card.time || ''}</span>
+        </div>
+        <div class="text-xs text-emerald-300 pl-4 border-l-2 border-emerald-500/60 font-sans leading-relaxed">
+          🤖 ${escapeHtml(card.reply)}
+        </div>
+        ${actionBadge ? `<div class="mt-1">${actionBadge}</div>` : ''}
+      `;
+      list.prepend(cardEl);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
     init();

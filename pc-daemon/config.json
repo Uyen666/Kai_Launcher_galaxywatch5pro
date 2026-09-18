@@ -1,27 +1,29 @@
 {
   "server_name": "WristHub Companion",
   "version": "1.0",
+  "gemini_api_key": "",
+  "gemini_model": "gemini-1.5-flash",
   "buttons": [
     {
       "id": "btn_1",
       "label": "開記事本",
-      "color": "#00E676",
+      "color": "#f3fbf7",
       "action_val": "notepad.exe",
       "icon": "📝",
       "action_type": "CMD"
     },
     {
       "id": "btn_2",
-      "label": "靜音",
-      "color": "#FF9100",
-      "action_val": "MUTE_TOGGLE",
-      "icon": "🔇",
+      "label": "音量-",
+      "color": "#99d9f5",
+      "action_val": "VOLUME_DOWN",
+      "icon": "🔊",
       "action_type": "SYSTEM_VOLUME"
     },
     {
       "id": "btn_3",
       "label": "音量+",
-      "color": "#222933",
+      "color": "#fb4b6e",
       "action_val": "VOLUME_UP",
       "icon": "🔊",
       "action_type": "SYSTEM_VOLUME"
