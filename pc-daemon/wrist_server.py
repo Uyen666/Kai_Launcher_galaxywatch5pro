@@ -461,7 +461,7 @@ def execute_ai_action(action_code: str):
         return execute_action("CMD", "calc.exe")
     return None
 
-def call_gemini_api(parts: list, api_key: str, model: str = "gemini-1.5-flash") -> dict:
+def call_gemini_api(parts: list, api_key: str, model: str = "gemini-3.5-flash-lite") -> dict:
     if not api_key:
         return {
             "error": True,
@@ -495,6 +495,10 @@ def call_gemini_api(parts: list, api_key: str, model: str = "gemini-1.5-flash") 
             resp_bytes = resp.read()
             res_data = json.loads(resp_bytes.decode("utf-8"))
     except urllib.error.HTTPError as e:
+        if e.code in (404, 503) and model != "gemini-3.5-flash-lite":
+            # Auto-fallback to active gemini-3.5-flash-lite if selected model is retired or overloaded
+            return call_gemini_api(parts, api_key, model="gemini-3.5-flash-lite")
+            
         err_msg = ""
         try:
             err_body = e.read().decode("utf-8", errors="ignore")
@@ -508,7 +512,9 @@ def call_gemini_api(parts: list, api_key: str, model: str = "gemini-1.5-flash") 
         elif "Resource has been exhausted" in err_msg or "Quota exceeded" in err_msg:
             friendly = "Gemini API 請求配額已耗盡，請稍後再試或更換金鑰。"
         elif "models/" in err_msg and "not found" in err_msg:
-            friendly = f"模型 {model} 不可用或金鑰無權限，請切換其他模型 (例如 gemini-1.5-flash)。"
+            friendly = f"模型 {model} 不可用或已退役，請切換其他模型 (例如 gemini-3.5-flash-lite)。"
+        elif e.code == 503:
+            friendly = f"Google 伺服器忙碌中 (503)，請稍後再試。"
         else:
             friendly = f"Google Gemini 錯誤 ({e.code}): {err_msg[:120]}"
             
@@ -583,7 +589,7 @@ async def get_ai_config():
     return {
         "has_key": bool(key),
         "masked_key": masked_key,
-        "model": cfg.get("gemini_model", "gemini-1.5-flash")
+        "model": cfg.get("gemini_model", "gemini-3.5-flash-lite")
     }
 
 @app.post("/api/ai/config")
@@ -602,7 +608,7 @@ async def save_ai_config(request: Request):
 async def process_ai_voice(file: UploadFile = File(...)):
     cfg = load_config()
     api_key = (cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")).strip()
-    model = cfg.get("gemini_model", "gemini-1.5-flash")
+    model = cfg.get("gemini_model", "gemini-3.5-flash-lite")
     
     if not api_key:
         msg = "請至電腦 Web 控制台 (http://localhost:8765) 的「🤖 Gemini AI 設定」輸入您的 API 金鑰！"
@@ -696,7 +702,7 @@ async def process_ai_text(request: Request):
     try:
         cfg = load_config()
         api_key = (cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")).strip()
-        model = cfg.get("gemini_model", "gemini-1.5-flash")
+        model = cfg.get("gemini_model", "gemini-3.5-flash-lite")
         data = await request.json()
         prompt = data.get("prompt", "").strip()
         
