@@ -1,4 +1,4 @@
-﻿# Kai Launcher for Galaxy Watch 5 Pro (WristHub) ⌚⚡
+# Kai Launcher for Galaxy Watch 5 Pro (WristHub) ⌚⚡
 
 [![Platform](https://img.shields.io/badge/Platform-Wear%20OS%204%2B%20%2F%20Android%2014%2B-blue.svg)](https://developer.android.com/wear)
 [![Device](https://img.shields.io/badge/Device-Samsung%20Galaxy%20Watch%205%20Pro-orange.svg)](https://www.samsung.com)
@@ -29,16 +29,20 @@
   * `🔴 OFF`：尚未連線至電腦。
 * **微光常亮模式（AOD / Ambient Mode）：** 支援 `AmbientLifecycleObserver`，手放下時自動進入黑白低更新率省電模式，手錶抬起立即恢復全彩全功能，不被系統強制退出。
 
-### 2. 💻 PC 遙控控制台（左滑分頁）
-* **零延遲通訊：** 透過區域網路 Wi-Fi WebSocket 保持小於 15ms 響應。
-* **系統與多媒體控制：**
+### 2. 💻 PC 遙控控制台（左滑分頁 & 電腦端 Web 控制台）
+* **本機 Web 控制台（Local Web Dashboard）：**
+  * 瀏覽器打開 `http://localhost:8765` 即可進入視覺化管理後台。
+  * **動態按鍵映射（Dynamic Mapping）**：在網頁上隨意變更按鈕圖示、名稱、顏色與動作，點擊「儲存並同步」，手錶畫面**秒速熱更新**，完全無需重新編譯 APK！
+  * **支援自訂指令（CMD Execution）**：可在電腦控制台上綁定任意指令（如 `notepad.exe`、`calc.exe`、`code .` 或 Python 自動化腳本）。
+  * **即時除錯與封包監視器（Live Debugger）**：即時串流顯示手錶點擊延遲（如 `耗時 7.0ms`）、旋轉錶圈 Delta 數值、手錶電池回報與連線狀態。
+* **手錶端互動：**
   * 🔇 **一鍵切換靜音**
   * 🔊 **音量增加** / 🔉 **音量減少**
   * ⏯️ **媒體播放 / 暫停**
   * ◀ **簡報上一頁** / ▶ **簡報下一頁**（PPT 翻頁器）
   * 🔒 **一鍵鎖定 Windows 電腦**（`Win + L`）
-* **旋轉外圈（Rotary Bezel）支援：** 手指沿著 Watch 5 Pro 螢幕外圈滑動觸碰邊框，可平滑調節電腦音量！
-* **線性馬達觸覺震動（Haptic Feedback）：** 每次按鍵均提供清脆的觸覺反饋。
+  * **旋轉外圈（Rotary Bezel）支援：** 手指在 Watch 5 Pro 螢幕外圈滑動觸碰邊框，可平滑調節電腦音量！
+  * **線性馬達觸覺震動（Haptic Feedback）：** 每次按鍵均提供清脆的觸覺反饋。
 
 ### 3. 🤖 Gemini AI 隨身助理（右滑分頁）
 * 手腕隨身錄音按鈕與對話卡片，支援語音下達指令與接收文字/語音摘要。

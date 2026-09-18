@@ -26,15 +26,21 @@ fun PcRemoteScreen(
 ) {
     val haptic = LocalHapticFeedback.current
     val isConnected by PcWebSocketManager.isConnected.collectAsState()
+    val buttonList by PcWebSocketManager.buttonList.collectAsState()
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
     }
 
-    fun trigger(action: String) {
+    fun triggerButton(btnId: String) {
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        PcWebSocketManager.sendCommand(action)
+        PcWebSocketManager.sendCommand("BUTTON_CLICK", mapOf("id" to btnId))
+    }
+
+    fun triggerRotary(delta: Int) {
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        PcWebSocketManager.sendCommand("ROTARY_SCROLL", mapOf("delta" to delta))
     }
 
     Box(
@@ -45,9 +51,9 @@ fun PcRemoteScreen(
             .focusable()
             .onRotaryScrollEvent { event ->
                 if (event.verticalScrollPixels > 0) {
-                    trigger("VOLUME_UP")
+                    triggerRotary(1)
                 } else if (event.verticalScrollPixels < 0) {
-                    trigger("VOLUME_DOWN")
+                    triggerRotary(-1)
                 }
                 true
             },
@@ -60,7 +66,7 @@ fun PcRemoteScreen(
                 .fillMaxSize()
                 .padding(12.dp)
         ) {
-            // Top Row: PC Remote Title + Status Chip + Lock Button
+            // Top Row: PC Remote Title + Status Indicator + Lock Button
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -73,7 +79,7 @@ fun PcRemoteScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                // Status chip
+                // Status indicator
                 Box(
                     modifier = Modifier
                         .size(8.dp)
@@ -85,7 +91,10 @@ fun PcRemoteScreen(
                 Spacer(modifier = Modifier.width(6.dp))
                 // Lock PC button
                 Button(
-                    onClick = { trigger("LOCK_PC") },
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        PcWebSocketManager.sendCommand("BUTTON_CLICK", mapOf("id" to "LOCK_PC", "actionId" to "LOCK_PC"))
+                    },
                     colors = ButtonDefaults.buttonColors(backgroundColor = SurfaceVariant),
                     modifier = Modifier.size(26.dp)
                 ) {
@@ -93,61 +102,53 @@ fun PcRemoteScreen(
                 }
             }
 
-            // Middle Row: Volume Control
+            // Dynamic Row 1 (Buttons 0..2)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(
-                    onClick = { trigger("VOLUME_DOWN") },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = SurfaceVariant),
-                    modifier = Modifier.size(42.dp)
-                ) {
-                    Text("🔉", fontSize = 15.sp)
-                }
-                Button(
-                    onClick = { trigger("MUTE_TOGGLE") },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = OrangeNeon),
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Text("🔇", fontSize = 16.sp)
-                }
-                Button(
-                    onClick = { trigger("VOLUME_UP") },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = SurfaceVariant),
-                    modifier = Modifier.size(42.dp)
-                ) {
-                    Text("🔊", fontSize = 15.sp)
+                val row1 = buttonList.take(3)
+                row1.forEach { btn ->
+                    val btnBg = remember(btn.colorHex) {
+                        try {
+                            Color(android.graphics.Color.parseColor(btn.colorHex))
+                        } catch (_: Exception) {
+                            SurfaceVariant
+                        }
+                    }
+                    Button(
+                        onClick = { triggerButton(btn.id) },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = btnBg),
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Text(btn.icon, fontSize = 16.sp)
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Bottom Row: Media & PPT Control
+            // Dynamic Row 2 (Buttons 3..5)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(
-                    onClick = { trigger("PPT_PREV") },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = SurfaceDark),
-                    modifier = Modifier.size(38.dp)
-                ) {
-                    Text("◀", fontSize = 12.sp, color = TextPrimary)
-                }
-                Button(
-                    onClick = { trigger("PLAY_PAUSE") },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = CyanNeon),
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Text("⏯", fontSize = 16.sp, color = Color.Black)
-                }
-                Button(
-                    onClick = { trigger("PPT_NEXT") },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = SurfaceDark),
-                    modifier = Modifier.size(38.dp)
-                ) {
-                    Text("▶", fontSize = 12.sp, color = TextPrimary)
+                val row2 = buttonList.drop(3).take(3)
+                row2.forEach { btn ->
+                    val btnBg = remember(btn.colorHex) {
+                        try {
+                            Color(android.graphics.Color.parseColor(btn.colorHex))
+                        } catch (_: Exception) {
+                            SurfaceVariant
+                        }
+                    }
+                    Button(
+                        onClick = { triggerButton(btn.id) },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = btnBg),
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Text(btn.icon, fontSize = 16.sp)
+                    }
                 }
             }
         }

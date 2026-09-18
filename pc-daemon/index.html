@@ -1,0 +1,301 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WristHub 控制台 - Galaxy Watch 5 Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: '#00E5FF',
+            brandGreen: '#00E676',
+            brandOrange: '#FF9100',
+            darkCard: '#131822',
+            darkBg: '#0A0D14'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-darkBg text-slate-100 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-darkCard/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-xl shadow-[0_0_15px_rgba(0,229,255,0.2)]">
+          ⌚
+        </div>
+        <div>
+          <h1 class="font-bold text-lg text-white flex items-center gap-2">
+            WristHub 控制台
+            <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">Galaxy Watch 5 Pro</span>
+          </h1>
+          <p class="text-xs text-slate-400">電腦端 FastAPI 守護程式 + 動態熱映射</p>
+        </div>
+      </div>
+
+      <!-- Live Status Indicators -->
+      <div class="flex items-center gap-3 text-sm">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800">
+          <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+          <span id="statusText" class="text-xs font-semibold text-rose-400">等待手錶連線...</span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800">
+          <span class="text-slate-400 text-xs">手錶 IP:</span>
+          <span id="watchIp" class="text-xs font-mono text-cyan-300">--</span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800">
+          <span class="text-slate-400 text-xs">手錶電量:</span>
+          <span id="watchBattery" class="text-xs font-mono text-emerald-400">--%</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Left Column: Dynamic Button Mapping (7 cols) -->
+    <div class="lg:col-span-7 flex flex-col gap-5">
+      <div class="bg-darkCard border border-slate-800/80 rounded-2xl p-5 shadow-xl">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+          <div>
+            <h2 class="font-bold text-base text-white flex items-center gap-2">
+              <span class="text-cyan-400">🎛️</span> 手錶遙控台按鍵映射 (動態熱更新)
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">在此修改按鈕與行為，手錶畫面瞬間同步，免重新編譯 APK！</p>
+          </div>
+          <button id="saveBtn" onclick="saveAndSync()" class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-semibold text-xs rounded-xl shadow-[0_0_20px_rgba(0,229,255,0.3)] transition active:scale-95">
+            <span>💾 儲存並同步手錶</span>
+          </button>
+        </div>
+
+        <!-- 6 Buttons Grid (Simulating Watch Screen layout) -->
+        <div id="buttonGrid" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
+          <!-- Dynamically populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Quick Preset Actions / Tips -->
+      <div class="bg-darkCard/50 border border-slate-800/60 rounded-xl p-4 text-xs text-slate-400 flex items-start gap-3">
+        <span class="text-base text-amber-400">💡</span>
+        <div class="space-y-1">
+          <p><strong class="text-slate-300">執行自訂命令（CMD）：</strong> 可輸入任何 Windows 命令，例如：<code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">notepad.exe</code>（記事本）、<code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">calc.exe</code>（計算機）、<code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">start https://google.com</code>。</p>
+          <p><strong class="text-slate-300">虛擬旋轉錶圈（Rotary）：</strong> 在手錶外圈滑動會直接觸發即時音量升降，可在右方監視器即時查看 Delta 數值。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Live Debugger & Packet Monitor (5 cols) -->
+    <div class="lg:col-span-5 flex flex-col">
+      <div class="bg-darkCard border border-slate-800/80 rounded-2xl p-5 shadow-xl flex-1 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <h2 class="font-bold text-base text-white">即時除錯與封包監視器</h2>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="clearLogs()" class="px-2.5 py-1 text-xs text-slate-400 hover:text-white bg-slate-900 border border-slate-800 rounded-lg hover:border-slate-700 transition">清空</button>
+          </div>
+        </div>
+
+        <!-- Terminal Console -->
+        <div id="consoleLog" class="mt-4 flex-1 bg-black/90 rounded-xl p-3.5 border border-slate-800/80 font-mono text-xs overflow-y-auto max-h-[520px] space-y-2">
+          <div class="text-slate-500">// 系統已就緒，正在監聽手錶通訊埠 8765...</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    let currentConfig = { buttons: [] };
+    let dashboardWs = null;
+
+    const actionTypes = [
+      { type: "SYSTEM_VOLUME", label: "系統音量 (Volume)", actions: ["VOLUME_UP", "VOLUME_DOWN", "MUTE_TOGGLE"] },
+      { type: "MEDIA", label: "多媒體 (Media/PPT)", actions: ["PLAY_PAUSE", "PPT_NEXT", "PPT_PREV", "NEXT_TRACK", "PREV_TRACK"] },
+      { type: "SYSTEM_ACTION", label: "Windows 系統動作", actions: ["LOCK_PC", "SHOW_DESKTOP"] },
+      { type: "CMD", label: "自訂命令列 (CMD)", actions: ["CMD_EXEC"] }
+    ];
+
+    const actionLabels = {
+      "VOLUME_UP": "🔊 音量增加",
+      "VOLUME_DOWN": "🔉 音量減少",
+      "MUTE_TOGGLE": "🔇 切換靜音",
+      "PLAY_PAUSE": "⏯ 播放/暫停",
+      "PPT_NEXT": "▶ 簡報下一頁",
+      "PPT_PREV": "◀ 簡報上一頁",
+      "NEXT_TRACK": "⏭ 下一首歌曲",
+      "PREV_TRACK": "⏮ 上一首歌曲",
+      "LOCK_PC": "🔒 鎖定電腦 (Win+L)",
+      "SHOW_DESKTOP": "🖥 顯示桌面 (Win+D)",
+      "CMD_EXEC": "⚡ 執行下方自訂指令"
+    };
+
+    // Load initial config
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config');
+        currentConfig = await res.json();
+        renderButtons();
+      } catch (err) {
+        addLog("ERROR", `載入配置失敗: ${err}`);
+      }
+    }
+
+    function renderButtons() {
+      const grid = document.getElementById('buttonGrid');
+      grid.innerHTML = '';
+
+      currentConfig.buttons.forEach((btn, index) => {
+        const card = document.createElement('div');
+        card.className = "bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex flex-col gap-2.5 hover:border-slate-700 transition";
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-400">#${index + 1}</span>
+            <div class="flex items-center gap-1.5">
+              <input type="text" maxlength="2" value="${btn.icon}" onchange="updateBtn(${index}, 'icon', this.value)" class="w-8 h-8 text-center text-lg bg-black border border-slate-700 rounded-lg focus:border-cyan-400 focus:outline-none" />
+              <input type="color" value="${btn.color}" onchange="updateBtn(${index}, 'color', this.value)" class="w-8 h-8 bg-transparent cursor-pointer rounded overflow-hidden border-0" />
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-500 uppercase font-semibold">按鈕名稱</label>
+            <input type="text" value="${btn.label}" onchange="updateBtn(${index}, 'label', this.value)" class="w-full text-xs px-2.5 py-1.5 bg-black border border-slate-800 rounded-lg text-white focus:border-cyan-400 focus:outline-none" />
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-500 uppercase font-semibold">動作類別</label>
+            <select onchange="updateActionType(${index}, this.value)" class="w-full text-xs px-2 py-1.5 bg-black border border-slate-800 rounded-lg text-slate-200 focus:border-cyan-400 focus:outline-none">
+              ${actionTypes.map(t => `<option value="${t.type}" ${btn.action_type === t.type ? 'selected' : ''}>${t.label}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-500 uppercase font-semibold">目標動作 / 指令</label>
+            ${btn.action_type === 'CMD' 
+              ? `<input type="text" placeholder="例如 notepad.exe" value="${btn.action_val || ''}" onchange="updateBtn(${index}, 'action_val', this.value)" class="w-full text-xs px-2.5 py-1.5 bg-black border border-cyan-500/40 rounded-lg text-cyan-300 font-mono focus:outline-none" />`
+              : `<select onchange="updateBtn(${index}, 'action_val', this.value)" class="w-full text-xs px-2 py-1.5 bg-black border border-slate-800 rounded-lg text-slate-200 focus:border-cyan-400 focus:outline-none">
+                  ${(actionTypes.find(t => t.type === btn.action_type)?.actions || []).map(a => `<option value="${a}" ${btn.action_val === a ? 'selected' : ''}>${actionLabels[a] || a}</option>`).join('')}
+                </select>`
+            }
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function updateBtn(index, key, value) {
+      currentConfig.buttons[index][key] = value;
+    }
+
+    function updateActionType(index, newType) {
+      currentConfig.buttons[index].action_type = newType;
+      const defaultAction = actionTypes.find(t => t.type === newType)?.actions[0] || "";
+      currentConfig.buttons[index].action_val = defaultAction;
+      renderButtons();
+    }
+
+    async function saveAndSync() {
+      const btn = document.getElementById('saveBtn');
+      btn.innerText = "⏳ 正在同步手錶...";
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(currentConfig)
+        });
+        if (res.ok) {
+          addLog("CONFIG", "✅ 配置已儲存並熱更新至手錶！");
+          btn.innerText = "✅ 同步成功！";
+          setTimeout(() => btn.innerText = "💾 儲存並同步手錶", 1500);
+        }
+      } catch (err) {
+        addLog("ERROR", `儲存失敗: ${err}`);
+        btn.innerText = "❌ 失敗";
+      }
+    }
+
+    // Live Debugger WebSocket
+    function connectDashboardWs() {
+      const loc = window.location;
+      const wsUrl = (loc.protocol === "https:" ? "wss://" : "ws://") + loc.host + "/ws/dashboard";
+      dashboardWs = new WebSocket(wsUrl);
+
+      dashboardWs.onopen = () => {
+        addLog("SYSTEM", "🔌 已連線至後端除錯日誌流");
+      };
+
+      dashboardWs.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handleLiveEvent(data);
+      };
+
+      dashboardWs.onclose = () => {
+        setTimeout(connectDashboardWs, 2000);
+      };
+    }
+
+    function handleLiveEvent(data) {
+      if (data.type === "STATUS") {
+        updateWatchStatus(data.watch_connected, data.watch_ip, data.watch_battery);
+      } else if (data.type === "LOG") {
+        addLog(data.category, data.message, data.time);
+      }
+    }
+
+    function updateWatchStatus(connected, ip, battery) {
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      const ipEl = document.getElementById('watchIp');
+      const batEl = document.getElementById('watchBattery');
+
+      if (connected) {
+        dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400";
+        text.className = "text-xs font-semibold text-emerald-400";
+        text.innerText = "Galaxy Watch 已連線";
+        ipEl.innerText = ip || "192.168.0.112";
+        if (battery !== undefined) batEl.innerText = `${battery}% ⚡`;
+      } else {
+        dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse";
+        text.className = "text-xs font-semibold text-rose-400";
+        text.innerText = "等待手錶連線...";
+      }
+    }
+
+    function addLog(category, msg, time = null) {
+      const consoleBox = document.getElementById('consoleLog');
+      const line = document.createElement('div');
+      const timeStr = time || new Date().toLocaleTimeString();
+
+      let tagColor = "text-slate-400";
+      if (category === "CLICK") tagColor = "text-cyan-400 font-bold";
+      else if (category === "ROTARY") tagColor = "text-amber-400 font-bold";
+      else if (category === "CONNECT") tagColor = "text-emerald-400 font-bold";
+      else if (category === "CONFIG") tagColor = "text-purple-400 font-bold";
+      else if (category === "ERROR") tagColor = "text-rose-400 font-bold";
+
+      line.innerHTML = `<span class="text-slate-600">[${timeStr}]</span> <span class="${tagColor}">[${category}]</span> <span class="text-slate-200">${msg}</span>`;
+      consoleBox.appendChild(line);
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    function clearLogs() {
+      document.getElementById('consoleLog').innerHTML = '';
+    }
+
+    // Init
+    loadConfig();
+    connectDashboardWs();
+  </script>
+</body>
+</html>

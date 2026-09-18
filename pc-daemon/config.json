@@ -1,0 +1,54 @@
+{
+  "server_name": "WristHub Companion",
+  "version": "1.0",
+  "buttons": [
+    {
+      "id": "btn_1",
+      "label": "開記事本",
+      "color": "#00E676",
+      "action_val": "notepad.exe",
+      "icon": "📝",
+      "action_type": "CMD"
+    },
+    {
+      "id": "btn_2",
+      "label": "靜音",
+      "color": "#FF9100",
+      "action_val": "MUTE_TOGGLE",
+      "icon": "🔇",
+      "action_type": "SYSTEM_VOLUME"
+    },
+    {
+      "id": "btn_3",
+      "label": "音量+",
+      "color": "#222933",
+      "action_val": "VOLUME_UP",
+      "icon": "🔊",
+      "action_type": "SYSTEM_VOLUME"
+    },
+    {
+      "id": "btn_4",
+      "label": "上一首",
+      "color": "#14181D",
+      "action_val": "PPT_PREV",
+      "icon": "◀",
+      "action_type": "MEDIA"
+    },
+    {
+      "id": "btn_5",
+      "label": "播放",
+      "color": "#00E5FF",
+      "action_val": "PLAY_PAUSE",
+      "icon": "⏯",
+      "action_type": "MEDIA"
+    },
+    {
+      "id": "btn_6",
+      "label": "下一首",
+      "color": "#14181D",
+      "action_val": "PPT_NEXT",
+      "icon": "▶",
+      "action_type": "MEDIA"
+    }
+  ]
+}

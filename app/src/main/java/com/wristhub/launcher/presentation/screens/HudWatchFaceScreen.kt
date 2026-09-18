@@ -39,19 +39,21 @@ fun HudWatchFaceScreen(
     LaunchedEffect(isAmbient) {
         while (true) {
             currentTime = Calendar.getInstance().time
-            // In ambient mode, update once every 20-60s to save power; active mode every second
             delay(if (isAmbient) 30000L else 1000L)
         }
     }
 
-    // Battery level reading
-    LaunchedEffect(Unit) {
+    // Battery level reading & reporting to PC
+    LaunchedEffect(isPcConnected) {
         val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
         val batteryStatus = context.registerReceiver(null, batteryFilter)
         val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
         if (level >= 0 && scale > 0) {
             batteryPercent = (level * 100) / scale
+            if (isPcConnected) {
+                PcWebSocketManager.sendCommand("BATTERY_UPDATE", mapOf("level" to batteryPercent))
+            }
         }
     }
 
@@ -66,16 +68,13 @@ fun HudWatchFaceScreen(
         contentAlignment = Alignment.Center
     ) {
         if (!isAmbient) {
-            // Futuristic outer circular decorative ring (Battery gauge)
             Canvas(modifier = Modifier.fillMaxSize().padding(14.dp)) {
                 val strokeWidth = 5.dp.toPx()
-                // Track background
                 drawCircle(
                     color = SurfaceVariant,
                     radius = (size.minDimension - strokeWidth) / 2,
                     style = Stroke(width = strokeWidth)
                 )
-                // Battery sweep arc
                 val sweepAngle = (batteryPercent / 100f) * 270f
                 drawArc(
                     color = when {
@@ -96,7 +95,6 @@ fun HudWatchFaceScreen(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(16.dp)
         ) {
-            // Top Status Bar: Date + PC Connection indicator
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -129,7 +127,6 @@ fun HudWatchFaceScreen(
                 }
             }
 
-            // Big Digital Time
             Row(
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.Center
@@ -154,7 +151,6 @@ fun HudWatchFaceScreen(
                 }
             }
 
-            // Bottom Status: Battery & Mode
             Spacer(modifier = Modifier.height(6.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
