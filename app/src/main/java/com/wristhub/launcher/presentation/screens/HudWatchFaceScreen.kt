@@ -239,7 +239,6 @@ fun HudWatchFaceScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .clip(CircleShape)
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {

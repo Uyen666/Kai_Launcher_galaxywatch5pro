@@ -23,9 +23,13 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun WristHubApp(
@@ -77,6 +81,14 @@ fun WristHubApp(
                 }
             }
 
+            val flingBehavior = PagerDefaults.flingBehavior(
+                state = pagerState,
+                snapAnimationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            )
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -85,7 +97,10 @@ fun WristHubApp(
             ) {
                 HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    beyondViewportPageCount = 1,
+                    flingBehavior = flingBehavior,
+                    pageSpacing = 16.dp
                 ) { page ->
                     Box(
                         modifier = Modifier
@@ -96,21 +111,18 @@ fun WristHubApp(
                                 )
                                 val clampedOffset = pageOffset.coerceIn(0f, 1f)
 
-                                // 1. Smooth dynamic scale transition (1.0 -> 0.82)
-                                val scale = 1f - 0.18f * clampedOffset
+                                // Smooth circular scale transition (1.0 -> 0.85) without expensive alpha saveLayer
+                                val scale = 1f - 0.15f * clampedOffset
                                 scaleX = scale
                                 scaleY = scale
 
-                                // 2. Smooth fade transition (1.0 -> 0.20)
-                                alpha = 1f - 0.80f * clampedOffset
-
-                                // 3. Enforce strict circular boundary clipping per page
+                                // Enforce strict circular disc outline so sliding preserves round watch face aesthetics
                                 clip = true
                                 shape = CircleShape
                             }
                     ) {
                         when (page) {
-                            0 -> PcRemoteScreen()
+                            0 -> PcRemoteScreen(isFocused = pagerState.currentPage == 0)
                             1 -> HudWatchFaceScreen(isAmbient = false)
                             2 -> AiAssistantScreen()
                         }

@@ -23,6 +23,7 @@ import com.wristhub.launcher.presentation.theme.*
 
 @Composable
 fun PcRemoteScreen(
+    isFocused: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -30,8 +31,10 @@ fun PcRemoteScreen(
     val buttonList by PcWebSocketManager.buttonList.collectAsState()
     val focusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            focusRequester.requestFocus()
+        }
     }
 
     fun triggerButton(btnId: String) {
@@ -47,7 +50,6 @@ fun PcRemoteScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .clip(CircleShape)
             .background(Color.Black)
             .focusRequester(focusRequester)
             .focusable()
