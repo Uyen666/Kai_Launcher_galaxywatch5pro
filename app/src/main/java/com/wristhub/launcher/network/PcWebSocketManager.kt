@@ -1,6 +1,8 @@
 ﻿package com.wristhub.launcher.network
 
+import android.content.Context
 import android.util.Log
+import com.wristhub.launcher.data.WatchFaceConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +28,7 @@ object PcWebSocketManager {
         .build()
 
     private var webSocket: WebSocket? = null
+    private var appContext: Context? = null
 
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
@@ -33,7 +36,6 @@ object PcWebSocketManager {
     private val _lastMessage = MutableStateFlow("")
     val lastMessage: StateFlow<String> = _lastMessage.asStateFlow()
 
-    // Default 6 buttons if offline
     private val defaultButtons = listOf(
         RemoteButtonConfig("btn_1", "音量-", "🔉", "#222933"),
         RemoteButtonConfig("btn_2", "靜音", "🔇", "#FF9100"),
@@ -48,6 +50,11 @@ object PcWebSocketManager {
 
     var currentPcIp: String = "192.168.0.109"
 
+    fun init(context: Context) {
+        appContext = context.applicationContext
+        WatchFaceSyncManager.init(context.applicationContext)
+    }
+
     fun connect(ip: String = currentPcIp) {
         currentPcIp = ip
         if (_isConnected.value) return
@@ -60,7 +67,6 @@ object PcWebSocketManager {
             override fun onOpen(ws: WebSocket, response: Response) {
                 Log.d(TAG, "Connected to PC: $ip")
                 _isConnected.value = true
-                // Ask for latest config
                 sendCommand("GET_CONFIG")
             }
 
@@ -69,7 +75,9 @@ object PcWebSocketManager {
                 _lastMessage.value = text
                 try {
                     val json = JSONObject(text)
-                    if (json.optString("type") == "CONFIG") {
+                    val msgType = json.optString("type")
+                    
+                    if (msgType == "CONFIG") {
                         val array = json.optJSONArray("buttons") ?: JSONArray()
                         val list = mutableListOf<RemoteButtonConfig>()
                         for (i in 0 until array.length()) {
@@ -85,6 +93,16 @@ object PcWebSocketManager {
                         }
                         if (list.isNotEmpty()) {
                             _buttonList.value = list
+                        }
+                    } else if (msgType == "WATCHFACE_UPDATE") {
+                        val cfgObj = json.optJSONObject("config")
+                        if (cfgObj != null && appContext != null) {
+                            val wfConfig = WatchFaceConfig.fromJson(cfgObj)
+                            WatchFaceSyncManager.saveConfig(appContext!!, wfConfig)
+                        }
+                        val bgUrl = json.optString("bg_url", "")
+                        if (bgUrl.isNotEmpty() && appContext != null) {
+                            WatchFaceSyncManager.downloadBackground(appContext!!, bgUrl)
                         }
                     }
                 } catch (e: Exception) {

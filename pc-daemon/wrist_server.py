@@ -1,13 +1,17 @@
-import os
+﻿import os
+import io
 import json
 import ctypes
 import datetime
 import subprocess
+import socket
 import asyncio
 from typing import List, Optional
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
 import uvicorn
 
 # Windows Virtual Key Codes
@@ -35,8 +39,12 @@ def show_desktop():
     user32.keybd_event(VK_LWIN, 0, 2, 0)
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(CURRENT_DIR, "static")
 CONFIG_FILE = os.path.join(CURRENT_DIR, "config.json")
+WF_CONFIG_FILE = os.path.join(CURRENT_DIR, "watchface_config.json")
 INDEX_FILE = os.path.join(CURRENT_DIR, "index.html")
+
+os.makedirs(STATIC_DIR, exist_ok=True)
 
 app = FastAPI(title="WristHub Companion Server")
 app.add_middleware(
@@ -46,6 +54,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 dashboard_websockets: List[WebSocket] = []
 watch_websocket: Optional[WebSocket] = None
@@ -56,6 +65,16 @@ watch_state = {
     "battery": None
 }
 
+def get_local_ip() -> str:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "192.168.0.109"
+
 def load_config():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
@@ -64,6 +83,24 @@ def load_config():
 
 def save_config(data):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def load_wf_config():
+    if os.path.exists(WF_CONFIG_FILE):
+        with open(WF_CONFIG_FILE, "r", encoding="utf-8-sig") as f:
+            return json.load(f)
+    return {
+        "clock_style": "DIGITAL",
+        "clock_color": "#00E5FF",
+        "dim_percent": 25,
+        "show_battery": true,
+        "show_date": true,
+        "show_pc_status": true,
+        "has_custom_bg": false
+    }
+
+def save_wf_config(data):
+    with open(WF_CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 async def broadcast_log(category: str, message: str):
@@ -101,6 +138,20 @@ async def broadcast_status():
     for ws in dead_ws:
         if ws in dashboard_websockets:
             dashboard_websockets.remove(ws)
+
+async def broadcast_watchface_update(wf_config, bg_url=None):
+    if watch_websocket is not None:
+        payload = {
+            "type": "WATCHFACE_UPDATE",
+            "config": wf_config
+        }
+        if bg_url:
+            payload["bg_url"] = bg_url
+        try:
+            await watch_websocket.send_text(json.dumps(payload))
+            await broadcast_log("WATCHFACE", "已將最新錶盤配置推播至手錶")
+        except Exception as e:
+            await broadcast_log("ERROR", f"推播錶盤給手錶失敗: {e}")
 
 def execute_action(action_type: str, action_val: str) -> str:
     if action_type == "SYSTEM_VOLUME":
@@ -174,7 +225,6 @@ async def api_save_config(request: Request):
     save_config(data)
     await broadcast_log("CONFIG", "按鍵映射已更新並儲存至 config.json")
     
-    # Notify watch to reload dynamic buttons immediately
     if watch_websocket is not None:
         try:
             config_payload = json.dumps({"type": "CONFIG", "buttons": data.get("buttons", [])})
@@ -185,11 +235,56 @@ async def api_save_config(request: Request):
             
     return {"status": "OK", "msg": "Config saved and synced"}
 
+@app.get("/api/watchface-config")
+async def api_get_wf_config():
+    return load_wf_config()
+
+@app.post("/api/watchface-config")
+async def api_save_wf_config(request: Request):
+    data = await request.json()
+    save_wf_config(data)
+    await broadcast_log("WATCHFACE", "錶盤自訂設定已儲存！")
+    bg_url = None
+    if data.get("has_custom_bg"):
+        bg_url = f"http://{get_local_ip()}:8765/static/custom_bg.webp?t={int(datetime.datetime.now().timestamp())}"
+    await broadcast_watchface_update(data, bg_url)
+    return {"status": "OK", "msg": "Watchface config updated"}
+
+@app.post("/api/upload-bg")
+async def api_upload_bg(file: UploadFile = File(...)):
+    contents = await file.read()
+    image = Image.open(io.BytesIO(contents))
+    
+    # Ensure format with alpha or RGB
+    if image.mode not in ("RGB", "RGBA"):
+        image = image.convert("RGBA")
+        
+    # Center crop to 1:1 square
+    w, h = image.size
+    min_dim = min(w, h)
+    left = (w - min_dim) // 2
+    top = (h - min_dim) // 2
+    cropped = image.crop((left, top, left + min_dim, top + min_dim))
+    
+    # Resize to Galaxy Watch 5 Pro 450x450
+    resized = cropped.resize((450, 450), Image.Resampling.LANCZOS)
+    
+    out_path = os.path.join(STATIC_DIR, "custom_bg.webp")
+    resized.save(out_path, "WEBP", quality=85)
+    
+    wf_cfg = load_wf_config()
+    wf_cfg["has_custom_bg"] = True
+    save_wf_config(wf_cfg)
+    
+    bg_url = f"http://{get_local_ip()}:8765/static/custom_bg.webp?t={int(datetime.datetime.now().timestamp())}"
+    await broadcast_watchface_update(wf_cfg, bg_url)
+    await broadcast_log("WATCHFACE", f"成功裁切並轉碼為 450x450 WebP！已通知手錶下載：{bg_url}")
+    return {"status": "OK", "bg_url": bg_url}
+
 @app.websocket("/ws/dashboard")
 async def dashboard_endpoint(websocket: WebSocket):
     await websocket.accept()
     dashboard_websockets.append(websocket)
-    # Send current status immediately
     await websocket.send_text(json.dumps({
         "type": "STATUS",
         "watch_connected": watch_state["connected"],
@@ -216,9 +311,17 @@ async def watch_endpoint(websocket: WebSocket):
     await broadcast_log("CONNECT", f"Galaxy Watch 已連線！來源 IP: {client_ip}")
     await broadcast_status()
     
-    # Send config to watch right on connect
+    # Send both button config and watchface config right on connect
     cfg = load_config()
     await websocket.send_text(json.dumps({"type": "CONFIG", "buttons": cfg.get("buttons", [])}))
+    
+    wf_cfg = load_wf_config()
+    bg_url = f"http://{get_local_ip()}:8765/static/custom_bg.webp" if wf_cfg.get("has_custom_bg") else None
+    await websocket.send_text(json.dumps({
+        "type": "WATCHFACE_UPDATE",
+        "config": wf_cfg,
+        "bg_url": bg_url
+    }))
     
     try:
         while True:
@@ -231,7 +334,9 @@ async def watch_endpoint(websocket: WebSocket):
                 if action == "GET_CONFIG":
                     current_cfg = load_config()
                     await websocket.send_text(json.dumps({"type": "CONFIG", "buttons": current_cfg.get("buttons", [])}))
-                    await broadcast_log("CONFIG", "手錶請求按鍵配置，已下發最新配置")
+                    current_wf = load_wf_config()
+                    b_url = f"http://{get_local_ip()}:8765/static/custom_bg.webp" if current_wf.get("has_custom_bg") else None
+                    await websocket.send_text(json.dumps({"type": "WATCHFACE_UPDATE", "config": current_wf, "bg_url": b_url}))
                 elif action == "BUTTON_CLICK":
                     btn_id = data.get("id", "")
                     action_id = data.get("actionId", "")
@@ -258,8 +363,9 @@ async def watch_endpoint(websocket: WebSocket):
                     watch_state["battery"] = level
                     await broadcast_status()
                     await broadcast_log("BATTERY", f"手錶電量上報: {level}% ⚡")
+                elif action == "BG_DOWNLOAD_SUCCESS":
+                    await broadcast_log("WATCHFACE", "手錶已成功透過協程完成自訂背景下載並存入本機儲存空間！")
                 else:
-                    # Legacy fallback
                     res = execute_action("SYSTEM_VOLUME", action)
                     await broadcast_log("CLICK", f"手錶傳統指令: {action} -> {res}")
                     
@@ -275,9 +381,11 @@ async def watch_endpoint(websocket: WebSocket):
         await broadcast_status()
 
 if __name__ == "__main__":
+    local_ip = get_local_ip()
     print("=" * 60, flush=True)
     print("🚀 WristHub FastAPI 伺服器啟動中...", flush=True)
-    print("💻 控制台網址: http://localhost:8765", flush=True)
-    print("📡 手錶通訊埠: ws://0.0.0.0:8765", flush=True)
+    print(f"💻 本機控制台網址: http://localhost:8765", flush=True)
+    print(f"📡 區域網路 IP: {local_ip}:8765", flush=True)
+    print(f"⌚ 手錶通訊端點: ws://0.0.0.0:8765", flush=True)
     print("=" * 60, flush=True)
     uvicorn.run(app, host="0.0.0.0", port=8765, log_level="warning")

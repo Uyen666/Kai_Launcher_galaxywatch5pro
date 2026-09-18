@@ -1,4 +1,4 @@
-﻿package com.wristhub.launcher.presentation
+package com.wristhub.launcher.presentation
 
 import android.os.Bundle
 import android.view.WindowManager
@@ -33,6 +33,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Initialize WebSocket & Local WatchFace Cache
+        com.wristhub.launcher.network.PcWebSocketManager.init(this)
 
         // Register ambient observer for persistent AOD behavior
         lifecycle.addObserver(ambientObserver)

@@ -31,88 +31,207 @@
 
   <!-- Header -->
   <header class="border-b border-slate-800 bg-darkCard/80 backdrop-blur sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-xl shadow-[0_0_15px_rgba(0,229,255,0.2)]">
+        <div class="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-lg shadow-[0_0_15px_rgba(0,229,255,0.2)]">
           ⌚
         </div>
         <div>
-          <h1 class="font-bold text-lg text-white flex items-center gap-2">
-            WristHub 控制台
-            <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">Galaxy Watch 5 Pro</span>
+          <h1 class="font-bold text-base text-white flex items-center gap-2">
+            WristHub 控制中心
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-mono">Galaxy Watch 5 Pro</span>
           </h1>
-          <p class="text-xs text-slate-400">電腦端 FastAPI 守護程式 + 動態熱映射</p>
+          <p class="text-[11px] text-slate-400">大螢幕視覺化自訂 + 區網無線零重編熱更新</p>
         </div>
       </div>
 
+      <!-- Navigation Tabs -->
+      <div class="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs">
+        <button id="tabWfBtn" onclick="switchTab('watchface')" class="px-3.5 py-1.5 rounded-lg font-semibold transition bg-cyan-500 text-black shadow-md">
+          🎨 錶面自訂工坊
+        </button>
+        <button id="tabButtonsBtn" onclick="switchTab('buttons')" class="px-3.5 py-1.5 rounded-lg font-semibold text-slate-300 hover:text-white transition">
+          🎛️ 遙控按鍵映射
+        </button>
+      </div>
+
       <!-- Live Status Indicators -->
-      <div class="flex items-center gap-3 text-sm">
-        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800">
-          <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
-          <span id="statusText" class="text-xs font-semibold text-rose-400">等待手錶連線...</span>
+      <div class="flex items-center gap-2.5 text-xs">
+        <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800">
+          <span id="statusDot" class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+          <span id="statusText" class="font-semibold text-rose-400 text-[11px]">等待手錶連線...</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800">
-          <span class="text-slate-400 text-xs">手錶 IP:</span>
-          <span id="watchIp" class="text-xs font-mono text-cyan-300">--</span>
+        <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800">
+          <span class="text-slate-400 text-[11px]">IP:</span>
+          <span id="watchIp" class="font-mono text-cyan-300 text-[11px]">--</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800">
-          <span class="text-slate-400 text-xs">手錶電量:</span>
-          <span id="watchBattery" class="text-xs font-mono text-emerald-400">--%</span>
+        <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800">
+          <span class="text-slate-400 text-[11px]">電量:</span>
+          <span id="watchBattery" class="font-mono text-emerald-400 text-[11px]">--%</span>
         </div>
       </div>
     </div>
   </header>
 
-  <!-- Main Content -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+  <!-- Main Grid -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
 
-    <!-- Left Column: Dynamic Button Mapping (7 cols) -->
-    <div class="lg:col-span-7 flex flex-col gap-5">
-      <div class="bg-darkCard border border-slate-800/80 rounded-2xl p-5 shadow-xl">
-        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
-          <div>
-            <h2 class="font-bold text-base text-white flex items-center gap-2">
-              <span class="text-cyan-400">🎛️</span> 手錶遙控台按鍵映射 (動態熱更新)
-            </h2>
-            <p class="text-xs text-slate-400 mt-0.5">在此修改按鈕與行為，手錶畫面瞬間同步，免重新編譯 APK！</p>
+    <!-- Left Column (7 cols): Active Tab Content -->
+    <div class="lg:col-span-7 flex flex-col gap-4">
+
+      <!-- ================= TAB 1: WATCH FACE STUDIO ================= -->
+      <div id="tabWatchface" class="flex flex-col gap-4">
+        <div class="bg-darkCard border border-slate-800/80 rounded-2xl p-5 shadow-xl">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div>
+              <h2 class="font-bold text-sm text-white flex items-center gap-2">
+                <span class="text-cyan-400">🎨</span> 常駐首頁自訂（手機鎖定畫面級體驗）
+              </h2>
+              <p class="text-xs text-slate-400 mt-0.5">自訂背景圖片、數位/指針時鐘與小工具，儲存後手錶即刻無線同步！</p>
+            </div>
+            <button id="saveWfBtn" onclick="saveWatchfaceConfig()" class="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold text-xs rounded-xl shadow-[0_0_15px_rgba(0,229,255,0.3)] transition active:scale-95">
+              <span>💾 儲存並推播錶面</span>
+            </button>
           </div>
-          <button id="saveBtn" onclick="saveAndSync()" class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-semibold text-xs rounded-xl shadow-[0_0_20px_rgba(0,229,255,0.3)] transition active:scale-95">
-            <span>💾 儲存並同步手錶</span>
-          </button>
-        </div>
 
-        <!-- 6 Buttons Grid (Simulating Watch Screen layout) -->
-        <div id="buttonGrid" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
-          <!-- Dynamically populated by JavaScript -->
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-5 mt-4 items-center">
+            
+            <!-- Circular Preview (5 cols) -->
+            <div class="sm:col-span-5 flex flex-col items-center justify-center">
+              <div class="text-[10px] text-slate-400 mb-2 font-mono">450x450 實機圓形畫布預覽</div>
+              <div class="relative w-52 h-52 rounded-full border-4 border-slate-700 bg-black overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.8)] flex items-center justify-center">
+                <!-- Background Image layer -->
+                <img id="previewBgImg" src="" class="absolute inset-0 w-full h-full object-cover hidden" />
+                <!-- Dim Overlay layer -->
+                <div id="previewDimOverlay" class="absolute inset-0 bg-black pointer-events-none" style="opacity: 0.25;"></div>
+                <!-- Battery Ring SVG -->
+                <svg id="previewBatteryRing" class="absolute inset-0 w-full h-full -rotate-90 pointer-events-none p-1.5" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="46" stroke="#222933" stroke-width="4" fill="none" />
+                  <circle cx="50" cy="50" r="46" stroke="#00E676" stroke-width="4" stroke-dasharray="289" stroke-dashoffset="60" stroke-linecap="round" fill="none" />
+                </svg>
+                <!-- Digital Clock Layout -->
+                <div id="previewDigitalBox" class="relative z-10 flex flex-col items-center justify-center text-center">
+                  <div id="previewDate" class="text-[9px] font-mono text-slate-300 font-medium tracking-wider mb-0.5">09/18 週五 🟢 PC</div>
+                  <div class="flex items-baseline font-mono font-black tracking-tighter" style="color: #00E5FF;">
+                    <span id="previewHourMin" class="text-3xl">17:45</span>
+                    <span id="previewSec" class="text-xs text-emerald-400 ml-0.5 font-bold">:32</span>
+                  </div>
+                  <div id="previewBatteryText" class="text-[9px] font-mono text-slate-300 mt-1">⚡ 91%</div>
+                </div>
+                <!-- Analog Clock Canvas Layout -->
+                <canvas id="previewAnalogCanvas" width="208" height="208" class="absolute inset-0 z-10 hidden pointer-events-none"></canvas>
+              </div>
+            </div>
+
+            <!-- Controls (7 cols) -->
+            <div class="sm:col-span-7 flex flex-col gap-3.5">
+              
+              <!-- Background Uploader -->
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+                <label class="text-xs font-bold text-slate-300 flex items-center justify-between">
+                  <span>🖼️ 個人背景照片 / 動圖</span>
+                  <span id="uploadState" class="text-[10px] text-cyan-400 font-normal">支援 JPG, PNG, WebP, GIF</span>
+                </label>
+                <div class="mt-2 flex items-center gap-2">
+                  <input type="file" id="bgFileInput" accept="image/*" class="hidden" onchange="handleBgUpload(this)" />
+                  <button onclick="document.getElementById('bgFileInput').click()" class="flex-1 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white rounded-lg border border-slate-700 transition">
+                    📁 選擇檔案上傳 (自動裁切為450x450)
+                  </button>
+                  <button onclick="resetBg()" class="py-1.5 px-2.5 bg-slate-800/60 hover:bg-slate-800 text-[11px] text-rose-400 rounded-lg border border-slate-800 transition">
+                    移除
+                  </button>
+                </div>
+              </div>
+
+              <!-- Clock Style Selector -->
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+                <label class="text-xs font-bold text-slate-300">⏱️ 時鐘樣式</label>
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                  <button type="button" onclick="setClockStyle('DIGITAL')" id="styleBtnDigital" class="py-1.5 px-2 rounded-lg border text-xs font-bold transition bg-cyan-500/20 border-cyan-500/60 text-cyan-300">
+                    數字 HUD 模式
+                  </button>
+                  <button type="button" onclick="setClockStyle('ANALOG')" id="styleBtnAnalog" class="py-1.5 px-2 rounded-lg border text-xs font-bold transition bg-slate-800/60 border-slate-700 text-slate-400">
+                    經典指針模式 (每秒跳動)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Color & Dimming Slider -->
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-[11px] font-semibold text-slate-400 block mb-1">時鐘主色調</label>
+                  <div class="flex items-center gap-2">
+                    <input type="color" id="clockColorInput" value="#00E5FF" onchange="updateWfColor(this.value)" class="w-8 h-8 rounded border-0 bg-transparent cursor-pointer" />
+                    <span id="clockColorHex" class="text-xs font-mono text-cyan-300">#00E5FF</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="text-[11px] font-semibold text-slate-400">防眩暗度濾鏡</label>
+                    <span id="dimValLabel" class="text-[11px] font-mono text-cyan-400">25%</span>
+                  </div>
+                  <input type="range" id="dimRange" min="0" max="70" value="25" oninput="updateDim(this.value)" class="w-full accent-cyan-400" />
+                </div>
+              </div>
+
+              <!-- Widgets Checkboxes -->
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between text-xs text-slate-300">
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" id="chkBattery" checked onchange="toggleWidget('battery', this.checked)" class="accent-cyan-400 rounded" />
+                  <span>電量弧度環</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" id="chkDate" checked onchange="toggleWidget('date', this.checked)" class="accent-cyan-400 rounded" />
+                  <span>日期與星期</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" id="chkPcStatus" checked onchange="toggleWidget('pcStatus', this.checked)" class="accent-cyan-400 rounded" />
+                  <span>電腦狀態燈</span>
+                </label>
+              </div>
+
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Quick Preset Actions / Tips -->
-      <div class="bg-darkCard/50 border border-slate-800/60 rounded-xl p-4 text-xs text-slate-400 flex items-start gap-3">
-        <span class="text-base text-amber-400">💡</span>
-        <div class="space-y-1">
-          <p><strong class="text-slate-300">執行自訂命令（CMD）：</strong> 可輸入任何 Windows 命令，例如：<code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">notepad.exe</code>（記事本）、<code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">calc.exe</code>（計算機）、<code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">start https://google.com</code>。</p>
-          <p><strong class="text-slate-300">虛擬旋轉錶圈（Rotary）：</strong> 在手錶外圈滑動會直接觸發即時音量升降，可在右方監視器即時查看 Delta 數值。</p>
+      <!-- ================= TAB 2: BUTTON MAPPING ================= -->
+      <div id="tabButtons" class="hidden flex-col gap-4">
+        <div class="bg-darkCard border border-slate-800/80 rounded-2xl p-5 shadow-xl">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div>
+              <h2 class="font-bold text-sm text-white flex items-center gap-2">
+                <span class="text-cyan-400">🎛️</span> 遙控按鍵映射 (動態熱更新)
+              </h2>
+              <p class="text-xs text-slate-400 mt-0.5">修改手錶遙控台 6 顆按鈕的 Emoji 圖示與指令，隨改隨生效！</p>
+            </div>
+            <button id="saveBtn" onclick="saveAndSync()" class="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold text-xs rounded-xl shadow-[0_0_15px_rgba(0,229,255,0.3)] transition active:scale-95">
+              <span>💾 儲存並同步手錶</span>
+            </button>
+          </div>
+
+          <!-- 6 Buttons Grid -->
+          <div id="buttonGrid" class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-4">
+            <!-- Dynamically populated -->
+          </div>
         </div>
       </div>
+
     </div>
 
-    <!-- Right Column: Live Debugger & Packet Monitor (5 cols) -->
+    <!-- Right Column (5 cols): Live Debugger & Console -->
     <div class="lg:col-span-5 flex flex-col">
-      <div class="bg-darkCard border border-slate-800/80 rounded-2xl p-5 shadow-xl flex-1 flex flex-col">
+      <div class="bg-darkCard border border-slate-800/80 rounded-2xl p-4 shadow-xl flex-1 flex flex-col">
         <div class="flex items-center justify-between pb-3 border-b border-slate-800">
           <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-            <h2 class="font-bold text-base text-white">即時除錯與封包監視器</h2>
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <h2 class="font-bold text-sm text-white">即時除錯與封包監視器</h2>
           </div>
-          <div class="flex items-center gap-2">
-            <button onclick="clearLogs()" class="px-2.5 py-1 text-xs text-slate-400 hover:text-white bg-slate-900 border border-slate-800 rounded-lg hover:border-slate-700 transition">清空</button>
-          </div>
+          <button onclick="clearLogs()" class="px-2 py-0.5 text-xs text-slate-400 hover:text-white bg-slate-900 border border-slate-800 rounded hover:border-slate-700 transition">清空</button>
         </div>
 
-        <!-- Terminal Console -->
-        <div id="consoleLog" class="mt-4 flex-1 bg-black/90 rounded-xl p-3.5 border border-slate-800/80 font-mono text-xs overflow-y-auto max-h-[520px] space-y-2">
-          <div class="text-slate-500">// 系統已就緒，正在監聽手錶通訊埠 8765...</div>
+        <div id="consoleLog" class="mt-3 flex-1 bg-black/95 rounded-xl p-3 border border-slate-800/80 font-mono text-[11px] overflow-y-auto max-h-[500px] space-y-1.5">
+          <div class="text-slate-500">// 伺服器監聽 8765 就緒...</div>
         </div>
       </div>
     </div>
@@ -121,70 +240,276 @@
 
   <script>
     let currentConfig = { buttons: [] };
+    let currentWfConfig = {
+      clock_style: "DIGITAL",
+      clock_color: "#00E5FF",
+      dim_percent: 25,
+      show_battery: true,
+      show_date: true,
+      show_pc_status: true,
+      has_custom_bg: false
+    };
     let dashboardWs = null;
 
-    const actionTypes = [
-      { type: "SYSTEM_VOLUME", label: "系統音量 (Volume)", actions: ["VOLUME_UP", "VOLUME_DOWN", "MUTE_TOGGLE"] },
-      { type: "MEDIA", label: "多媒體 (Media/PPT)", actions: ["PLAY_PAUSE", "PPT_NEXT", "PPT_PREV", "NEXT_TRACK", "PREV_TRACK"] },
-      { type: "SYSTEM_ACTION", label: "Windows 系統動作", actions: ["LOCK_PC", "SHOW_DESKTOP"] },
-      { type: "CMD", label: "自訂命令列 (CMD)", actions: ["CMD_EXEC"] }
-    ];
+    // Tabs switching
+    function switchTab(tab) {
+      const isWf = tab === 'watchface';
+      document.getElementById('tabWatchface').classList.toggle('hidden', !isWf);
+      document.getElementById('tabButtons').classList.toggle('hidden', isWf);
 
-    const actionLabels = {
-      "VOLUME_UP": "🔊 音量增加",
-      "VOLUME_DOWN": "🔉 音量減少",
-      "MUTE_TOGGLE": "🔇 切換靜音",
-      "PLAY_PAUSE": "⏯ 播放/暫停",
-      "PPT_NEXT": "▶ 簡報下一頁",
-      "PPT_PREV": "◀ 簡報上一頁",
-      "NEXT_TRACK": "⏭ 下一首歌曲",
-      "PREV_TRACK": "⏮ 上一首歌曲",
-      "LOCK_PC": "🔒 鎖定電腦 (Win+L)",
-      "SHOW_DESKTOP": "🖥 顯示桌面 (Win+D)",
-      "CMD_EXEC": "⚡ 執行下方自訂指令"
-    };
+      document.getElementById('tabWfBtn').className = isWf
+        ? 'px-3.5 py-1.5 rounded-lg font-semibold transition bg-cyan-500 text-black shadow-md'
+        : 'px-3.5 py-1.5 rounded-lg font-semibold text-slate-300 hover:text-white transition';
+      document.getElementById('tabButtonsBtn').className = !isWf
+        ? 'px-3.5 py-1.5 rounded-lg font-semibold transition bg-cyan-500 text-black shadow-md'
+        : 'px-3.5 py-1.5 rounded-lg font-semibold text-slate-300 hover:text-white transition';
+    }
 
-    // Load initial config
-    async function loadConfig() {
+    // Load initial configs
+    async function init() {
       try {
-        const res = await fetch('/api/config');
-        currentConfig = await res.json();
+        const resBtn = await fetch('/api/config');
+        currentConfig = await resBtn.json();
         renderButtons();
+
+        const resWf = await fetch('/api/watchface-config');
+        currentWfConfig = await resWf.json();
+        applyWfConfigToUI();
       } catch (err) {
         addLog("ERROR", `載入配置失敗: ${err}`);
       }
+      connectDashboardWs();
+      startAnalogPreviewClock();
     }
+
+    // Watch face UI controls
+    function applyWfConfigToUI() {
+      document.getElementById('clockColorInput').value = currentWfConfig.clock_color || "#00E5FF";
+      document.getElementById('clockColorHex').innerText = currentWfConfig.clock_color || "#00E5FF";
+      document.getElementById('dimRange').value = currentWfConfig.dim_percent || 25;
+      document.getElementById('dimValLabel').innerText = `${currentWfConfig.dim_percent || 25}%`;
+      document.getElementById('chkBattery').checked = currentWfConfig.show_battery !== false;
+      document.getElementById('chkDate').checked = currentWfConfig.show_date !== false;
+      document.getElementById('chkPcStatus').checked = currentWfConfig.show_pc_status !== false;
+
+      if (currentWfConfig.has_custom_bg) {
+        const bgImg = document.getElementById('previewBgImg');
+        bgImg.src = `/static/custom_bg.webp?t=${Date.now()}`;
+        bgImg.classList.remove('hidden');
+      }
+
+      setClockStyle(currentWfConfig.clock_style || "DIGITAL", false);
+      updatePreviewDisplay();
+    }
+
+    function setClockStyle(style, updateConfig = true) {
+      if (updateConfig) currentWfConfig.clock_style = style;
+      const isDig = style === "DIGITAL";
+      document.getElementById('styleBtnDigital').className = isDig
+        ? 'py-1.5 px-2 rounded-lg border text-xs font-bold transition bg-cyan-500/20 border-cyan-500/60 text-cyan-300'
+        : 'py-1.5 px-2 rounded-lg border text-xs font-bold transition bg-slate-800/60 border-slate-700 text-slate-400';
+      document.getElementById('styleBtnAnalog').className = !isDig
+        ? 'py-1.5 px-2 rounded-lg border text-xs font-bold transition bg-cyan-500/20 border-cyan-500/60 text-cyan-300'
+        : 'py-1.5 px-2 rounded-lg border text-xs font-bold transition bg-slate-800/60 border-slate-700 text-slate-400';
+
+      document.getElementById('previewDigitalBox').classList.toggle('hidden', !isDig);
+      document.getElementById('previewAnalogCanvas').classList.toggle('hidden', isDig);
+    }
+
+    function updateWfColor(hex) {
+      currentWfConfig.clock_color = hex;
+      document.getElementById('clockColorHex').innerText = hex;
+      document.getElementById('previewHourMin').style.color = hex;
+    }
+
+    function updateDim(val) {
+      currentWfConfig.dim_percent = parseInt(val);
+      document.getElementById('dimValLabel').innerText = `${val}%`;
+      document.getElementById('previewDimOverlay').style.opacity = val / 100;
+    }
+
+    function toggleWidget(widget, isChecked) {
+      if (widget === 'battery') currentWfConfig.show_battery = isChecked;
+      if (widget === 'date') currentWfConfig.show_date = isChecked;
+      if (widget === 'pcStatus') currentWfConfig.show_pc_status = isChecked;
+      updatePreviewDisplay();
+    }
+
+    function updatePreviewDisplay() {
+      document.getElementById('previewBatteryRing').style.display = currentWfConfig.show_battery ? 'block' : 'none';
+      document.getElementById('previewBatteryText').style.display = currentWfConfig.show_battery ? 'block' : 'none';
+      document.getElementById('previewDate').style.display = currentWfConfig.show_date ? 'block' : 'none';
+      document.getElementById('previewDimOverlay').style.opacity = (currentWfConfig.dim_percent || 25) / 100;
+      document.getElementById('previewHourMin').style.color = currentWfConfig.clock_color || '#00E5FF';
+    }
+
+    async function handleBgUpload(input) {
+      if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const stateLabel = document.getElementById('uploadState');
+      stateLabel.innerText = "⏳ 裁切轉碼上傳中...";
+
+      try {
+        const res = await fetch('/api/upload-bg', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.status === 'OK') {
+          stateLabel.innerText = "✅ 已上傳並通知手錶下載！";
+          currentWfConfig.has_custom_bg = true;
+          const bgImg = document.getElementById('previewBgImg');
+          bgImg.src = `${data.bg_url}&r=${Date.now()}`;
+          bgImg.classList.remove('hidden');
+          addLog("WATCHFACE", `背景圖片已上傳並轉碼為 450x450 WebP！`);
+        }
+      } catch (err) {
+        stateLabel.innerText = "❌ 上傳失敗";
+        addLog("ERROR", `上傳背景失敗: ${err}`);
+      }
+    }
+
+    function resetBg() {
+      currentWfConfig.has_custom_bg = false;
+      document.getElementById('previewBgImg').classList.add('hidden');
+      document.getElementById('uploadState').innerText = "已恢復純黑背景";
+    }
+
+    async function saveWatchfaceConfig() {
+      const btn = document.getElementById('saveWfBtn');
+      btn.innerText = "⏳ 同步中...";
+      try {
+        const res = await fetch('/api/watchface-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(currentWfConfig)
+        });
+        if (res.ok) {
+          btn.innerText = "✅ 同步成功！";
+          addLog("CONFIG", "錶面配置已即時推播給手錶！");
+          setTimeout(() => btn.innerText = "💾 儲存並推播錶面", 1500);
+        }
+      } catch (err) {
+        btn.innerText = "❌ 失敗";
+      }
+    }
+
+    // Canvas Analog Clock for Preview
+    function startAnalogPreviewClock() {
+      const canvas = document.getElementById('previewAnalogCanvas');
+      const ctx = canvas.getContext('2d');
+
+      setInterval(() => {
+        const now = new Date();
+        const hrs = now.getHours();
+        const mins = now.getMinutes();
+        const secs = now.getSeconds();
+
+        // Update digital preview time as well
+        document.getElementById('previewHourMin').innerText = `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}`;
+        document.getElementById('previewSec').innerText = `:${String(secs).padStart(2,'0')}`;
+
+        if (currentWfConfig.clock_style !== "ANALOG") return;
+
+        ctx.clearRect(0, 0, 208, 208);
+        const cx = 104, cy = 104;
+
+        // Draw hour ticks
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 12; i++) {
+          const angle = (i * 30) * Math.PI / 180;
+          const x1 = cx + Math.cos(angle) * 88;
+          const y1 = cy + Math.sin(angle) * 88;
+          const x2 = cx + Math.cos(angle) * 98;
+          const y2 = cy + Math.sin(angle) * 98;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+
+        // Hour Hand
+        const hrAngle = ((hrs % 12 + mins / 60) * 30 - 90) * Math.PI / 180;
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 4.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(hrAngle) * 50, cy + Math.sin(hrAngle) * 50);
+        ctx.stroke();
+
+        // Minute Hand
+        const minAngle = ((mins + secs / 60) * 6 - 90) * Math.PI / 180;
+        ctx.strokeStyle = currentWfConfig.clock_color || '#00E5FF';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(minAngle) * 75, cy + Math.sin(minAngle) * 75);
+        ctx.stroke();
+
+        // Second Hand (Ticks once per second!)
+        const secAngle = (secs * 6 - 90) * Math.PI / 180;
+        ctx.strokeStyle = '#00E676';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx - Math.cos(secAngle) * 15, cy - Math.sin(secAngle) * 15);
+        ctx.lineTo(cx + Math.cos(secAngle) * 85, cy + Math.sin(secAngle) * 85);
+        ctx.stroke();
+
+        // Center Pin
+        ctx.fillStyle = '#00E676';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }, 1000);
+    }
+
+    // ================= BUTTON MAPPING SECTION =================
+    const actionTypes = [
+      { type: "SYSTEM_VOLUME", label: "系統音量", actions: ["VOLUME_UP", "VOLUME_DOWN", "MUTE_TOGGLE"] },
+      { type: "MEDIA", label: "多媒體 / 簡報", actions: ["PLAY_PAUSE", "PPT_NEXT", "PPT_PREV", "NEXT_TRACK", "PREV_TRACK"] },
+      { type: "SYSTEM_ACTION", label: "系統動作", actions: ["LOCK_PC", "SHOW_DESKTOP"] },
+      { type: "CMD", label: "自訂命令 (CMD)", actions: ["CMD_EXEC"] }
+    ];
+
+    const actionLabels = {
+      "VOLUME_UP": "🔊 音量增加", "VOLUME_DOWN": "🔉 音量減少", "MUTE_TOGGLE": "🔇 切換靜音",
+      "PLAY_PAUSE": "⏯ 播放/暫停", "PPT_NEXT": "▶ 簡報下一頁", "PPT_PREV": "◀ 簡報上一頁",
+      "NEXT_TRACK": "⏭ 下一首", "PREV_TRACK": "⏮ 上一首",
+      "LOCK_PC": "🔒 鎖定電腦 (Win+L)", "SHOW_DESKTOP": "🖥 顯示桌面 (Win+D)",
+      "CMD_EXEC": "⚡ 執行自訂指令"
+    };
 
     function renderButtons() {
       const grid = document.getElementById('buttonGrid');
       grid.innerHTML = '';
-
       currentConfig.buttons.forEach((btn, index) => {
         const card = document.createElement('div');
-        card.className = "bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex flex-col gap-2.5 hover:border-slate-700 transition";
+        card.className = "bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col gap-2 hover:border-slate-700 transition";
         card.innerHTML = `
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold text-slate-400">#${index + 1}</span>
             <div class="flex items-center gap-1.5">
-              <input type="text" maxlength="2" value="${btn.icon}" onchange="updateBtn(${index}, 'icon', this.value)" class="w-8 h-8 text-center text-lg bg-black border border-slate-700 rounded-lg focus:border-cyan-400 focus:outline-none" />
-              <input type="color" value="${btn.color}" onchange="updateBtn(${index}, 'color', this.value)" class="w-8 h-8 bg-transparent cursor-pointer rounded overflow-hidden border-0" />
+              <input type="text" maxlength="2" value="${btn.icon}" onchange="updateBtn(${index}, 'icon', this.value)" class="w-7 h-7 text-center text-base bg-black border border-slate-700 rounded-lg focus:outline-none" />
+              <input type="color" value="${btn.color}" onchange="updateBtn(${index}, 'color', this.value)" class="w-7 h-7 bg-transparent cursor-pointer rounded border-0" />
             </div>
           </div>
           <div>
-            <label class="text-[10px] text-slate-500 uppercase font-semibold">按鈕名稱</label>
-            <input type="text" value="${btn.label}" onchange="updateBtn(${index}, 'label', this.value)" class="w-full text-xs px-2.5 py-1.5 bg-black border border-slate-800 rounded-lg text-white focus:border-cyan-400 focus:outline-none" />
+            <label class="text-[9px] text-slate-500 uppercase font-semibold">名稱</label>
+            <input type="text" value="${btn.label}" onchange="updateBtn(${index}, 'label', this.value)" class="w-full text-xs px-2 py-1 bg-black border border-slate-800 rounded text-white focus:outline-none" />
           </div>
           <div>
-            <label class="text-[10px] text-slate-500 uppercase font-semibold">動作類別</label>
-            <select onchange="updateActionType(${index}, this.value)" class="w-full text-xs px-2 py-1.5 bg-black border border-slate-800 rounded-lg text-slate-200 focus:border-cyan-400 focus:outline-none">
+            <label class="text-[9px] text-slate-500 uppercase font-semibold">動作類別</label>
+            <select onchange="updateActionType(${index}, this.value)" class="w-full text-xs px-1.5 py-1 bg-black border border-slate-800 rounded text-slate-200 focus:outline-none">
               ${actionTypes.map(t => `<option value="${t.type}" ${btn.action_type === t.type ? 'selected' : ''}>${t.label}</option>`).join('')}
             </select>
           </div>
           <div>
-            <label class="text-[10px] text-slate-500 uppercase font-semibold">目標動作 / 指令</label>
-            ${btn.action_type === 'CMD' 
-              ? `<input type="text" placeholder="例如 notepad.exe" value="${btn.action_val || ''}" onchange="updateBtn(${index}, 'action_val', this.value)" class="w-full text-xs px-2.5 py-1.5 bg-black border border-cyan-500/40 rounded-lg text-cyan-300 font-mono focus:outline-none" />`
-              : `<select onchange="updateBtn(${index}, 'action_val', this.value)" class="w-full text-xs px-2 py-1.5 bg-black border border-slate-800 rounded-lg text-slate-200 focus:border-cyan-400 focus:outline-none">
+            <label class="text-[9px] text-slate-500 uppercase font-semibold">動作 / 指令</label>
+            ${btn.action_type === 'CMD'
+              ? `<input type="text" placeholder="例如 notepad.exe" value="${btn.action_val || ''}" onchange="updateBtn(${index}, 'action_val', this.value)" class="w-full text-xs px-2 py-1 bg-black border border-cyan-500/40 rounded text-cyan-300 font-mono focus:outline-none" />`
+              : `<select onchange="updateBtn(${index}, 'action_val', this.value)" class="w-full text-xs px-1.5 py-1 bg-black border border-slate-800 rounded text-slate-200 focus:outline-none">
                   ${(actionTypes.find(t => t.type === btn.action_type)?.actions || []).map(a => `<option value="${a}" ${btn.action_val === a ? 'selected' : ''}>${actionLabels[a] || a}</option>`).join('')}
                 </select>`
             }
@@ -200,14 +525,13 @@
 
     function updateActionType(index, newType) {
       currentConfig.buttons[index].action_type = newType;
-      const defaultAction = actionTypes.find(t => t.type === newType)?.actions[0] || "";
-      currentConfig.buttons[index].action_val = defaultAction;
+      currentConfig.buttons[index].action_val = actionTypes.find(t => t.type === newType)?.actions[0] || "";
       renderButtons();
     }
 
     async function saveAndSync() {
       const btn = document.getElementById('saveBtn');
-      btn.innerText = "⏳ 正在同步手錶...";
+      btn.innerText = "⏳ 同步中...";
       try {
         const res = await fetch('/api/config', {
           method: 'POST',
@@ -215,42 +539,31 @@
           body: JSON.stringify(currentConfig)
         });
         if (res.ok) {
-          addLog("CONFIG", "✅ 配置已儲存並熱更新至手錶！");
           btn.innerText = "✅ 同步成功！";
+          addLog("CONFIG", "按鍵映射已熱更至手錶！");
           setTimeout(() => btn.innerText = "💾 儲存並同步手錶", 1500);
         }
       } catch (err) {
-        addLog("ERROR", `儲存失敗: ${err}`);
         btn.innerText = "❌ 失敗";
       }
     }
 
-    // Live Debugger WebSocket
+    // ================= LIVE DEBUGGER WS =================
     function connectDashboardWs() {
       const loc = window.location;
       const wsUrl = (loc.protocol === "https:" ? "wss://" : "ws://") + loc.host + "/ws/dashboard";
       dashboardWs = new WebSocket(wsUrl);
 
-      dashboardWs.onopen = () => {
-        addLog("SYSTEM", "🔌 已連線至後端除錯日誌流");
-      };
-
+      dashboardWs.onopen = () => addLog("SYSTEM", "🔌 已連線至後端除錯日誌流");
       dashboardWs.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        handleLiveEvent(data);
+        if (data.type === "STATUS") {
+          updateWatchStatus(data.watch_connected, data.watch_ip, data.watch_battery);
+        } else if (data.type === "LOG") {
+          addLog(data.category, data.message, data.time);
+        }
       };
-
-      dashboardWs.onclose = () => {
-        setTimeout(connectDashboardWs, 2000);
-      };
-    }
-
-    function handleLiveEvent(data) {
-      if (data.type === "STATUS") {
-        updateWatchStatus(data.watch_connected, data.watch_ip, data.watch_battery);
-      } else if (data.type === "LOG") {
-        addLog(data.category, data.message, data.time);
-      }
+      dashboardWs.onclose = () => setTimeout(connectDashboardWs, 2000);
     }
 
     function updateWatchStatus(connected, ip, battery) {
@@ -260,20 +573,20 @@
       const batEl = document.getElementById('watchBattery');
 
       if (connected) {
-        dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400";
-        text.className = "text-xs font-semibold text-emerald-400";
+        dot.className = "w-2 h-2 rounded-full bg-emerald-400";
+        text.className = "font-semibold text-emerald-400 text-[11px]";
         text.innerText = "Galaxy Watch 已連線";
         ipEl.innerText = ip || "192.168.0.112";
         if (battery !== undefined) batEl.innerText = `${battery}% ⚡`;
       } else {
-        dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse";
-        text.className = "text-xs font-semibold text-rose-400";
+        dot.className = "w-2 h-2 rounded-full bg-rose-500 animate-pulse";
+        text.className = "font-semibold text-rose-400 text-[11px]";
         text.innerText = "等待手錶連線...";
       }
     }
 
     function addLog(category, msg, time = null) {
-      const consoleBox = document.getElementById('consoleLog');
+      const box = document.getElementById('consoleLog');
       const line = document.createElement('div');
       const timeStr = time || new Date().toLocaleTimeString();
 
@@ -281,21 +594,19 @@
       if (category === "CLICK") tagColor = "text-cyan-400 font-bold";
       else if (category === "ROTARY") tagColor = "text-amber-400 font-bold";
       else if (category === "CONNECT") tagColor = "text-emerald-400 font-bold";
-      else if (category === "CONFIG") tagColor = "text-purple-400 font-bold";
+      else if (category === "WATCHFACE") tagColor = "text-purple-400 font-bold";
       else if (category === "ERROR") tagColor = "text-rose-400 font-bold";
 
       line.innerHTML = `<span class="text-slate-600">[${timeStr}]</span> <span class="${tagColor}">[${category}]</span> <span class="text-slate-200">${msg}</span>`;
-      consoleBox.appendChild(line);
-      consoleBox.scrollTop = consoleBox.scrollHeight;
+      box.appendChild(line);
+      box.scrollTop = box.scrollHeight;
     }
 
     function clearLogs() {
       document.getElementById('consoleLog').innerHTML = '';
     }
 
-    // Init
-    loadConfig();
-    connectDashboardWs();
+    init();
   </script>
 </body>
 </html>

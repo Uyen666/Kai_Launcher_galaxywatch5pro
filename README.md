@@ -13,21 +13,27 @@
 
 ## 📸 實機畫面（Galaxy Watch 5 Pro 實拍截圖）
 
-| ⌚ 自訂 HUD 數位錶盤 | 💻 PC 遙控控制台（已連線） | 🤖 Gemini AI 語音助理 |
+| 🎨 自訂背景 + 數位 HUD | 🕰️ 經典指針模式 (每秒跳動) | 💻 PC 遙控台 (熱映射) |
 | :---: | :---: | :---: |
-| ![HUD 錶盤](docs/images/watch_connected_hud.png) | ![PC 遙控台](docs/images/watch_remote_connected.png) | ![AI 助理](docs/images/watch_ai.png) |
+| ![自訂數位錶盤](docs/images/watch_digital_bg.png) | ![經典指針錶盤](docs/images/watch_analog.png) | ![PC 遙控台](docs/images/watch_dynamic_updated.png) |
 
 ---
 
 ## 🌟 核心特色功能
 
-### 1. ⌚ 科幻 HUD 數位錶盤（主頁面）
-* **極致省電：** 採用 AMOLED 純黑底色設計，最小化像素耗電。
-* **外圈弧形電量計：** 動態色彩顯示（綠/橙/紅），即時追蹤手錶 590mAh 電池百分比。
-* **連線狀態指示燈：**
-  * `🟢 PC`：與電腦端 WebSocket 服務連線正常。
-  * `🔴 OFF`：尚未連線至電腦。
-* **微光常亮模式（AOD / Ambient Mode）：** 支援 `AmbientLifecycleObserver`，手放下時自動進入黑白低更新率省電模式，手錶抬起立即恢復全彩全功能，不被系統強制退出。
+### 1. 🎨 高度可自訂義錶面（鎖定畫面級體驗 + 100% 離線優先）
+* **大螢幕 Web 視覺化工坊（Watch Face Studio）：**
+  * 打開 `http://localhost:8765` 切換至「🎨 錶面自訂工坊」，具備 450x450 圓形實時 WYSIWYG 畫布預覽。
+* **個人照片 / 動圖導入（完全無線化）：**
+  * 支援上傳任意 JPG、PNG、WebP 或 GIF，電腦後端（Pillow）自動置中裁切、縮放至 450x450，並轉為超省電高壓縮 WebP。
+  * 手錶端透過背景協程（Coroutine）將檔案永久下載至 `context.filesDir/custom_bg.webp`。
+* **出門 100% 離線可用（Offline-First）：**
+  * 斷開電腦或出門在外時，手錶開機瞬間自本地快取載入圖片與配置，基本時鐘、電量弧環、日期功能完整保留，不依賴電腦連線。
+* **雙時鐘模式：**
+  * **數位 HUD 模式**：霓虹色調大字體數位時間、實時秒數。
+  * **經典指針模式**：高精度幾何 Canvas 繪製 12 小時刻度、時針、分針與每秒跳動一次的秒針（Tick-Tock）。
+* **防眩光暗角濾鏡 (Dim Ratio)**：0%~70% 可調黑底半透明遮罩，確保背景再花俏也能清晰閱讀時間。
+* **AOD 微光常亮模式相容：** 手放下時背景自動轉為純黑 OLED 關閉像素省電防烙印，抬腕喚醒瞬間（0ms）無縫恢復個人自訂背景！
 
 ### 2. 💻 PC 遙控控制台（左滑分頁 & 電腦端 Web 控制台）
 * **本機 Web 控制台（Local Web Dashboard）：**
