@@ -59,8 +59,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
 
-    // Image Loading (Coil)
+    // Image Loading (Coil with Animated WebP & GIF support)
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt:coil-gif:2.7.0")
 
     // Wear Ambient mode
     implementation("androidx.wear:wear:1.3.0")
