@@ -41,6 +41,24 @@ data class WatchFaceConfig(
     val pcStatusOffsetX: Int = 0, // dp from center
     val pcStatusOffsetY: Int = -74, // dp from center
 
+    // Complications: Steps Counter (2D X/Y)
+    val showSteps: Boolean = false,
+    val stepsColorHex: String = "#E2E8F0",
+    val stepsFontSize: Int = 11, // sp
+    val stepsOffsetX: Int = -46, // dp from center
+    val stepsOffsetY: Int = 40, // dp from center
+
+    // Complications: Heart Rate Monitor (2D X/Y)
+    val showHeartRate: Boolean = false,
+    val heartRateColorHex: String = "#FF5252",
+    val heartRateFontSize: Int = 11, // sp
+    val heartRateOffsetX: Int = 46, // dp from center
+    val heartRateOffsetY: Int = 40, // dp from center
+
+    // Dial Ticks & Markers (NONE, BARS, DOTS, NUMBERS)
+    val ticksStyle: String = "BARS",
+    val ticksColorHex: String = "#CCCCCC",
+
     val hasCustomBg: Boolean = false
 ) {
     fun toJson(): JSONObject {
@@ -72,6 +90,18 @@ data class WatchFaceConfig(
             put("pc_status_size", pcStatusSize)
             put("pc_status_offset_x", pcStatusOffsetX)
             put("pc_status_offset_y", pcStatusOffsetY)
+            put("show_steps", showSteps)
+            put("steps_color", stepsColorHex)
+            put("steps_font_size", stepsFontSize)
+            put("steps_offset_x", stepsOffsetX)
+            put("steps_offset_y", stepsOffsetY)
+            put("show_heart_rate", showHeartRate)
+            put("heart_rate_color", heartRateColorHex)
+            put("heart_rate_font_size", heartRateFontSize)
+            put("heart_rate_offset_x", heartRateOffsetX)
+            put("heart_rate_offset_y", heartRateOffsetY)
+            put("ticks_style", ticksStyle)
+            put("ticks_color", ticksColorHex)
             put("has_custom_bg", hasCustomBg)
         }
     }
@@ -106,6 +136,18 @@ data class WatchFaceConfig(
                 pcStatusSize = json.optInt("pc_status_size", 7),
                 pcStatusOffsetX = json.optInt("pc_status_offset_x", 0),
                 pcStatusOffsetY = json.optInt("pc_status_offset_y", -74),
+                showSteps = json.optBoolean("show_steps", false),
+                stepsColorHex = json.optString("steps_color", "#E2E8F0"),
+                stepsFontSize = json.optInt("steps_font_size", 11),
+                stepsOffsetX = json.optInt("steps_offset_x", -46),
+                stepsOffsetY = json.optInt("steps_offset_y", 40),
+                showHeartRate = json.optBoolean("show_heart_rate", false),
+                heartRateColorHex = json.optString("heart_rate_color", "#FF5252"),
+                heartRateFontSize = json.optInt("heart_rate_font_size", 11),
+                heartRateOffsetX = json.optInt("heart_rate_offset_x", 46),
+                heartRateOffsetY = json.optInt("heart_rate_offset_y", 40),
+                ticksStyle = json.optString("ticks_style", "BARS"),
+                ticksColorHex = json.optString("ticks_color", "#CCCCCC"),
                 hasCustomBg = json.optBoolean("has_custom_bg", false)
             )
         }

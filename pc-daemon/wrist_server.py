@@ -117,6 +117,18 @@ def load_wf_config():
         "pc_status_size": 7,
         "pc_status_offset_x": 0,
         "pc_status_offset_y": -74,
+        "show_steps": False,
+        "steps_color": "#E2E8F0",
+        "steps_font_size": 11,
+        "steps_offset_x": -46,
+        "steps_offset_y": 40,
+        "show_heart_rate": False,
+        "heart_rate_color": "#FF5252",
+        "heart_rate_font_size": 11,
+        "heart_rate_offset_x": 46,
+        "heart_rate_offset_y": 40,
+        "ticks_style": "BARS",
+        "ticks_color": "#CCCCCC",
         "has_custom_bg": False
     }
 

@@ -129,6 +129,16 @@
                   <span id="previewBatteryNumText" class="font-mono font-medium text-[11px] text-slate-400">⚡ 100%</span>
                 </div>
 
+                <!-- Independent Steps Complication Layer -->
+                <div id="previewStepsLayer" class="absolute z-20 hidden items-center justify-center transition-all pointer-events-none" style="transform: translate(-46px, 40px);">
+                  <span id="previewStepsText" class="font-mono font-semibold tracking-wider text-[11px] text-slate-300">👣 6,420</span>
+                </div>
+
+                <!-- Independent Heart Rate Complication Layer -->
+                <div id="previewHeartRateLayer" class="absolute z-20 hidden items-center justify-center transition-all pointer-events-none" style="transform: translate(46px, 40px);">
+                  <span id="previewHeartRateText" class="font-mono font-semibold tracking-wider text-[11px] text-rose-400">❤️ 72 bpm</span>
+                </div>
+
                 <!-- Digital Clock Layout -->
                 <div id="previewDigitalBox" class="relative z-10 flex flex-col items-center justify-center text-center">
                   <div class="flex items-baseline font-mono font-black tracking-tighter" style="color: #00E5FF;">
@@ -370,6 +380,93 @@
                 </div>
               </div>
 
+              <!-- Dial Ticks & Markers Card -->
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-200">⏱️ 錶盤刻度樣式 (Dial Markers)</span>
+                  <div class="flex items-center gap-2">
+                    <select id="ticksStyleSelect" onchange="updateTicksStyle(this.value)" class="bg-slate-800 border border-slate-700 text-[11px] text-slate-300 rounded px-2 py-0.5">
+                      <option value="BARS">經典線條 (BARS)</option>
+                      <option value="DOTS">珠光金屬圓點 (DOTS)</option>
+                      <option value="NUMBERS">阿拉伯數字 (1~12)</option>
+                      <option value="NONE">極簡無刻度 (NONE)</option>
+                    </select>
+                    <input type="color" id="ticksColorInput" value="#CCCCCC" onchange="updateTicksColor(this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Health Complications: Steps & Heart Rate -->
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-200">🩺 錶面健康小工具 (Complications)</span>
+                  <span class="text-[10px] text-slate-500">2D自由拖曳定位</span>
+                </div>
+
+                <!-- 1. Steps Widget -->
+                <div class="bg-slate-800/40 rounded-lg p-2.5 space-y-2 border border-slate-800/80">
+                  <div class="flex items-center justify-between">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-200">
+                      <input type="checkbox" id="chkSteps" onchange="toggleWidget('steps', this.checked)" class="accent-cyan-400 rounded" />
+                      <span>👣 每日步數 (Step Counter)</span>
+                    </label>
+                    <div class="flex items-center gap-2">
+                      <input type="range" id="stepsSizeRange" min="8" max="18" value="11" oninput="updateStepsSize(this.value)" class="w-14 accent-cyan-400" />
+                      <span id="stepsSizeLabel" class="text-[10px] font-mono text-cyan-400">11sp</span>
+                      <input type="color" id="stepsColorInput" value="#E2E8F0" onchange="updateStepsColor(this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/50">
+                    <div>
+                      <div class="flex items-center justify-between mb-1">
+                        <label class="text-[10px] text-slate-400">步數水平 (X)</label>
+                        <span id="stepsOffsetXLabel" class="text-[10px] font-mono text-cyan-400">-46dp</span>
+                      </div>
+                      <input type="range" id="stepsOffsetXRange" min="-100" max="100" value="-46" oninput="updateStepsOffsetX(this.value)" class="w-full accent-cyan-400" />
+                    </div>
+                    <div>
+                      <div class="flex items-center justify-between mb-1">
+                        <label class="text-[10px] text-slate-400">步數垂直 (Y)</label>
+                        <span id="stepsOffsetYLabel" class="text-[10px] font-mono text-cyan-400">40dp</span>
+                      </div>
+                      <input type="range" id="stepsOffsetYRange" min="-100" max="100" value="40" oninput="updateStepsOffsetY(this.value)" class="w-full accent-cyan-400" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 2. Heart Rate Widget -->
+                <div class="bg-slate-800/40 rounded-lg p-2.5 space-y-2 border border-slate-800/80">
+                  <div class="flex items-center justify-between">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-200">
+                      <input type="checkbox" id="chkHeartRate" onchange="toggleWidget('heartRate', this.checked)" class="accent-rose-500 rounded" />
+                      <span>❤️ 即時心率 (Heart Rate)</span>
+                    </label>
+                    <div class="flex items-center gap-2">
+                      <input type="range" id="heartRateSizeRange" min="8" max="18" value="11" oninput="updateHeartRateSize(this.value)" class="w-14 accent-rose-400" />
+                      <span id="heartRateSizeLabel" class="text-[10px] font-mono text-rose-400">11sp</span>
+                      <input type="color" id="heartRateColorInput" value="#FF5252" onchange="updateHeartRateColor(this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/50">
+                    <div>
+                      <div class="flex items-center justify-between mb-1">
+                        <label class="text-[10px] text-slate-400">心率水平 (X)</label>
+                        <span id="heartRateOffsetXLabel" class="text-[10px] font-mono text-rose-400">46dp</span>
+                      </div>
+                      <input type="range" id="heartRateOffsetXRange" min="-100" max="100" value="46" oninput="updateHeartRateOffsetX(this.value)" class="w-full accent-rose-400" />
+                    </div>
+                    <div>
+                      <div class="flex items-center justify-between mb-1">
+                        <label class="text-[10px] text-slate-400">心率垂直 (Y)</label>
+                        <span id="heartRateOffsetYLabel" class="text-[10px] font-mono text-rose-400">40dp</span>
+                      </div>
+                      <input type="range" id="heartRateOffsetYRange" min="-100" max="100" value="40" oninput="updateHeartRateOffsetY(this.value)" class="w-full accent-rose-400" />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
             </div>
           </div>
         </div>
@@ -537,6 +634,30 @@
       document.getElementById('pcStatusOffsetYRange').value = currentWfConfig.pc_status_offset_y ?? -74;
       document.getElementById('pcStatusOffsetYLabel').innerText = `${currentWfConfig.pc_status_offset_y ?? -74}dp`;
 
+      // Dial Ticks & Markers
+      document.getElementById('ticksStyleSelect').value = currentWfConfig.ticks_style || "BARS";
+      document.getElementById('ticksColorInput').value = currentWfConfig.ticks_color || "#CCCCCC";
+
+      // Steps Complication (2D)
+      document.getElementById('chkSteps').checked = currentWfConfig.show_steps === true;
+      document.getElementById('stepsColorInput').value = currentWfConfig.steps_color || "#E2E8F0";
+      document.getElementById('stepsSizeRange').value = currentWfConfig.steps_font_size ?? 11;
+      document.getElementById('stepsSizeLabel').innerText = `${currentWfConfig.steps_font_size ?? 11}sp`;
+      document.getElementById('stepsOffsetXRange').value = currentWfConfig.steps_offset_x ?? -46;
+      document.getElementById('stepsOffsetXLabel').innerText = `${currentWfConfig.steps_offset_x ?? -46}dp`;
+      document.getElementById('stepsOffsetYRange').value = currentWfConfig.steps_offset_y ?? 40;
+      document.getElementById('stepsOffsetYLabel').innerText = `${currentWfConfig.steps_offset_y ?? 40}dp`;
+
+      // Heart Rate Complication (2D)
+      document.getElementById('chkHeartRate').checked = currentWfConfig.show_heart_rate === true;
+      document.getElementById('heartRateColorInput').value = currentWfConfig.heart_rate_color || "#FF5252";
+      document.getElementById('heartRateSizeRange').value = currentWfConfig.heart_rate_font_size ?? 11;
+      document.getElementById('heartRateSizeLabel').innerText = `${currentWfConfig.heart_rate_font_size ?? 11}sp`;
+      document.getElementById('heartRateOffsetXRange').value = currentWfConfig.heart_rate_offset_x ?? 46;
+      document.getElementById('heartRateOffsetXLabel').innerText = `${currentWfConfig.heart_rate_offset_x ?? 46}dp`;
+      document.getElementById('heartRateOffsetYRange').value = currentWfConfig.heart_rate_offset_y ?? 40;
+      document.getElementById('heartRateOffsetYLabel').innerText = `${currentWfConfig.heart_rate_offset_y ?? 40}dp`;
+
       if (currentWfConfig.has_custom_bg) {
         const bgImg = document.getElementById('previewBgImg');
         bgImg.src = `/static/custom_bg.webp?t=${Date.now()}`;
@@ -670,11 +791,63 @@
       updatePreviewDisplay();
     }
 
+    // Dial Ticks Handlers
+    function updateTicksStyle(style) {
+      currentWfConfig.ticks_style = style;
+    }
+    function updateTicksColor(hex) {
+      currentWfConfig.ticks_color = hex;
+    }
+
+    // Steps Complication Handlers
+    function updateStepsColor(hex) {
+      currentWfConfig.steps_color = hex;
+      updatePreviewDisplay();
+    }
+    function updateStepsSize(val) {
+      currentWfConfig.steps_font_size = parseInt(val);
+      document.getElementById('stepsSizeLabel').innerText = `${val}sp`;
+      updatePreviewDisplay();
+    }
+    function updateStepsOffsetX(val) {
+      currentWfConfig.steps_offset_x = parseInt(val);
+      document.getElementById('stepsOffsetXLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
+    function updateStepsOffsetY(val) {
+      currentWfConfig.steps_offset_y = parseInt(val);
+      document.getElementById('stepsOffsetYLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
+
+    // Heart Rate Complication Handlers
+    function updateHeartRateColor(hex) {
+      currentWfConfig.heart_rate_color = hex;
+      updatePreviewDisplay();
+    }
+    function updateHeartRateSize(val) {
+      currentWfConfig.heart_rate_font_size = parseInt(val);
+      document.getElementById('heartRateSizeLabel').innerText = `${val}sp`;
+      updatePreviewDisplay();
+    }
+    function updateHeartRateOffsetX(val) {
+      currentWfConfig.heart_rate_offset_x = parseInt(val);
+      document.getElementById('heartRateOffsetXLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
+    function updateHeartRateOffsetY(val) {
+      currentWfConfig.heart_rate_offset_y = parseInt(val);
+      document.getElementById('heartRateOffsetYLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
+
     function toggleWidget(widget, isChecked) {
       if (widget === 'battery') currentWfConfig.show_battery = isChecked;
       if (widget === 'batteryText') currentWfConfig.show_battery_text = isChecked;
       if (widget === 'date') currentWfConfig.show_date = isChecked;
       if (widget === 'pcStatus') currentWfConfig.show_pc_status = isChecked;
+      if (widget === 'steps') currentWfConfig.show_steps = isChecked;
+      if (widget === 'heartRate') currentWfConfig.show_heart_rate = isChecked;
       updatePreviewDisplay();
     }
 
@@ -759,6 +932,32 @@
         const py = (currentWfConfig.pc_status_offset_y ?? -74) * scale;
         pcLayer.style.transform = `translate(${px}px, ${py}px)`;
       }
+
+      // Steps Complication Layer (2D X/Y)
+      const showSteps = currentWfConfig.show_steps === true;
+      const stepsLayer = document.getElementById('previewStepsLayer');
+      stepsLayer.style.display = showSteps ? 'flex' : 'none';
+      if (showSteps) {
+        const text = document.getElementById('previewStepsText');
+        text.style.color = currentWfConfig.steps_color || '#E2E8F0';
+        text.style.fontSize = `${currentWfConfig.steps_font_size ?? 11}px`;
+        const px = (currentWfConfig.steps_offset_x ?? -46) * scale;
+        const py = (currentWfConfig.steps_offset_y ?? 40) * scale;
+        stepsLayer.style.transform = `translate(${px}px, ${py}px)`;
+      }
+
+      // Heart Rate Complication Layer (2D X/Y)
+      const showHR = currentWfConfig.show_heart_rate === true;
+      const hrLayer = document.getElementById('previewHeartRateLayer');
+      hrLayer.style.display = showHR ? 'flex' : 'none';
+      if (showHR) {
+        const text = document.getElementById('previewHeartRateText');
+        text.style.color = currentWfConfig.heart_rate_color || '#FF5252';
+        text.style.fontSize = `${currentWfConfig.heart_rate_font_size ?? 11}px`;
+        const px = (currentWfConfig.heart_rate_offset_x ?? 46) * scale;
+        const py = (currentWfConfig.heart_rate_offset_y ?? 40) * scale;
+        hrLayer.style.transform = `translate(${px}px, ${py}px)`;
+      }
     }
 
     async function handleBgUpload(input) {
@@ -832,19 +1031,46 @@
         ctx.clearRect(0, 0, 224, 224);
         const cx = 112, cy = 112;
 
-        // Draw hour ticks
-        ctx.strokeStyle = '#475569';
-        ctx.lineWidth = 2;
-        for (let i = 0; i < 12; i++) {
-          const angle = (i * 30) * Math.PI / 180;
-          const x1 = cx + Math.cos(angle) * 94;
-          const y1 = cy + Math.sin(angle) * 94;
-          const x2 = cx + Math.cos(angle) * 105;
-          const y2 = cy + Math.sin(angle) * 105;
-          ctx.beginPath();
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-          ctx.stroke();
+        // Draw Dial Ticks based on ticks_style (NONE, BARS, DOTS, NUMBERS)
+        const ticksStyle = currentWfConfig.ticks_style || "BARS";
+        const ticksColor = currentWfConfig.ticks_color || "#CCCCCC";
+        if (ticksStyle === "BARS") {
+          ctx.strokeStyle = ticksColor;
+          ctx.lineWidth = 2;
+          for (let i = 0; i < 12; i++) {
+            const angle = (i * 30) * Math.PI / 180;
+            const r1 = (i % 3 === 0) ? 92 : 96;
+            const x1 = cx + Math.cos(angle) * r1;
+            const y1 = cy + Math.sin(angle) * r1;
+            const x2 = cx + Math.cos(angle) * 105;
+            const y2 = cy + Math.sin(angle) * 105;
+            ctx.lineWidth = (i % 3 === 0) ? 2.5 : 1.5;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+          }
+        } else if (ticksStyle === "DOTS") {
+          ctx.fillStyle = ticksColor;
+          for (let i = 0; i < 12; i++) {
+            const angle = (i * 30) * Math.PI / 180;
+            const x = cx + Math.cos(angle) * 98;
+            const y = cy + Math.sin(angle) * 98;
+            ctx.beginPath();
+            ctx.arc(x, y, (i % 3 === 0) ? 3 : 1.8, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        } else if (ticksStyle === "NUMBERS") {
+          ctx.fillStyle = ticksColor;
+          ctx.font = "bold 11px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          for (let i = 1; i <= 12; i++) {
+            const angle = (i * 30 - 90) * Math.PI / 180;
+            const x = cx + Math.cos(angle) * 96;
+            const y = cy + Math.sin(angle) * 96;
+            ctx.fillText(i.toString(), x, y);
+          }
         }
 
         const depthScale = (currentWfConfig.enable_hand_shadows !== false)

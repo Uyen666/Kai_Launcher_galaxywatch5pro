@@ -3,6 +3,12 @@ package com.wristhub.launcher.presentation.screens
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.BatteryManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -16,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -107,6 +114,62 @@ fun HudWatchFaceScreen(
             Color(android.graphics.Color.parseColor(wfConfig.batteryTextColorHex))
         } catch (_: Exception) {
             TextSecondary
+        }
+    }
+
+    val stepsColor = remember(wfConfig.stepsColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(wfConfig.stepsColorHex))
+        } catch (_: Exception) {
+            Color(0xFFE2E8F0)
+        }
+    }
+
+    val heartRateColor = remember(wfConfig.heartRateColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(wfConfig.heartRateColorHex))
+        } catch (_: Exception) {
+            Color(0xFFFF5252)
+        }
+    }
+
+    val ticksColor = remember(wfConfig.ticksColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(wfConfig.ticksColorHex))
+        } catch (_: Exception) {
+            Color(0xFFCCCCCC)
+        }
+    }
+
+    var stepCount by remember { mutableIntStateOf(0) }
+    var heartRate by remember { mutableIntStateOf(0) }
+
+    // Register Sensors for Steps and Heart Rate
+    DisposableEffect(wfConfig.showSteps, wfConfig.showHeartRate) {
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        val stepSensor = if (wfConfig.showSteps) sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) else null
+        val hrSensor = if (wfConfig.showHeartRate) sensorManager?.getDefaultSensor(Sensor.TYPE_HEART_RATE) else null
+
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent?) {
+                if (event == null) return
+                if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
+                    val s = event.values.firstOrNull()?.toInt() ?: 0
+                    if (s > 0) stepCount = s
+                } else if (event.sensor.type == Sensor.TYPE_HEART_RATE) {
+                    val hr = event.values.firstOrNull()?.toInt() ?: 0
+                    if (hr > 0) heartRate = hr
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+
+        stepSensor?.let { sensorManager?.registerListener(listener, it, SensorManager.SENSOR_DELAY_UI) }
+        hrSensor?.let { sensorManager?.registerListener(listener, it, SensorManager.SENSOR_DELAY_NORMAL) }
+
+        onDispose {
+            sensorManager?.unregisterListener(listener)
         }
     }
 
@@ -256,7 +319,43 @@ fun HudWatchFaceScreen(
             }
         }
 
-        // 6. Main Clock Area: ANALOG vs DIGITAL
+        // 6. Steps Counter Complication (2D X/Y Offset)
+        if (wfConfig.showSteps) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset(x = wfConfig.stepsOffsetX.dp, y = wfConfig.stepsOffsetY.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "👣 ${if (stepCount > 0) String.format(Locale.getDefault(), "%,d", stepCount) else "--"}",
+                    color = if (isAmbient) Color.Gray else stepsColor,
+                    fontSize = wfConfig.stepsFontSize.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+
+        // 7. Heart Rate Complication (2D X/Y Offset)
+        if (wfConfig.showHeartRate) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset(x = wfConfig.heartRateOffsetX.dp, y = wfConfig.heartRateOffsetY.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "❤️ ${if (heartRate > 0) "$heartRate bpm" else "--"}",
+                    color = if (isAmbient) Color.Gray else heartRateColor,
+                    fontSize = wfConfig.heartRateFontSize.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+
+        // 8. Main Clock Area: ANALOG vs DIGITAL
         if (wfConfig.clockStyle == "ANALOG") {
             // Analog Clock Canvas
             Canvas(
@@ -268,18 +367,58 @@ fun HudWatchFaceScreen(
                 val cy = size.height / 2
                 val radius = size.minDimension / 2
 
-                // Hour Ticks
-                for (i in 0 until 12) {
-                    val angle = (i * 30.0) * (PI / 180.0)
-                    val r1 = radius - 14.dp.toPx()
-                    val r2 = radius - 4.dp.toPx()
-                    drawLine(
-                        color = Color.LightGray.copy(alpha = 0.7f),
-                        start = Offset(cx + cos(angle).toFloat() * r1, cy + sin(angle).toFloat() * r1),
-                        end = Offset(cx + cos(angle).toFloat() * r2, cy + sin(angle).toFloat() * r2),
-                        strokeWidth = if (i % 3 == 0) 3.dp.toPx() else 1.5.dp.toPx(),
-                        cap = StrokeCap.Round
-                    )
+                // Dial Ticks based on ticksStyle (NONE, BARS, DOTS, NUMBERS)
+                when (wfConfig.ticksStyle) {
+                    "BARS" -> {
+                        for (i in 0 until 12) {
+                            val angle = (i * 30.0) * (PI / 180.0)
+                            val r1 = radius - 14.dp.toPx()
+                            val r2 = radius - 4.dp.toPx()
+                            drawLine(
+                                color = ticksColor.copy(alpha = if (i % 3 == 0) 0.9f else 0.6f),
+                                start = Offset(cx + cos(angle).toFloat() * r1, cy + sin(angle).toFloat() * r1),
+                                end = Offset(cx + cos(angle).toFloat() * r2, cy + sin(angle).toFloat() * r2),
+                                strokeWidth = if (i % 3 == 0) 3.dp.toPx() else 1.5.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                        }
+                    }
+                    "DOTS" -> {
+                        for (i in 0 until 12) {
+                            val angle = (i * 30.0) * (PI / 180.0)
+                            val r = radius - 8.dp.toPx()
+                            drawCircle(
+                                color = ticksColor.copy(alpha = if (i % 3 == 0) 0.95f else 0.65f),
+                                radius = if (i % 3 == 0) 3.5.dp.toPx() else 2.dp.toPx(),
+                                center = Offset(cx + cos(angle).toFloat() * r, cy + sin(angle).toFloat() * r)
+                            )
+                        }
+                    }
+                    "NUMBERS" -> {
+                        val numPaint = Paint().apply {
+                            color = android.graphics.Color.parseColor(wfConfig.ticksColorHex)
+                            textSize = 13.sp.toPx()
+                            textAlign = Paint.Align.CENTER
+                            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+                            isAntiAlias = true
+                        }
+                        for (i in 1..12) {
+                            val angle = (i * 30.0 - 90.0) * (PI / 180.0)
+                            val r = radius - 10.dp.toPx()
+                            val text = "$i"
+                            val fm = numPaint.fontMetrics
+                            val baseline = cy + sin(angle).toFloat() * r - (fm.ascent + fm.descent) / 2
+                            drawContext.canvas.nativeCanvas.drawText(
+                                text,
+                                cx + cos(angle).toFloat() * r,
+                                baseline,
+                                numPaint
+                            )
+                        }
+                    }
+                    "NONE" -> {
+                        // Minimalist clean style: no ticks drawn
+                    }
                 }
 
                 val hrs = cal.get(Calendar.HOUR)
