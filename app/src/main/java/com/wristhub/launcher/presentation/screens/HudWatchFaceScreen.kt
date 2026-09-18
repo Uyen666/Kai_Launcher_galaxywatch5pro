@@ -1,4 +1,4 @@
-﻿package com.wristhub.launcher.presentation.screens
+package com.wristhub.launcher.presentation.screens
 
 import android.content.Context
 import android.content.Intent
@@ -54,6 +54,30 @@ fun HudWatchFaceScreen(
         }
     }
 
+    val dateColor = remember(wfConfig.dateColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(wfConfig.dateColorHex))
+        } catch (_: Exception) {
+            TextSecondary
+        }
+    }
+
+    val batteryCustomColor = remember(wfConfig.batteryCustomColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(wfConfig.batteryCustomColorHex))
+        } catch (_: Exception) {
+            GreenNeon
+        }
+    }
+
+    val pcStatusColor = remember(wfConfig.pcStatusColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(wfConfig.pcStatusColorHex))
+        } catch (_: Exception) {
+            GreenNeon
+        }
+    }
+
     // Clock update loop: 1 second in active, 30s in ambient
     LaunchedEffect(isAmbient) {
         while (true) {
@@ -105,20 +129,25 @@ fun HudWatchFaceScreen(
 
         // 2. Outer Battery Arc (if enabled & active)
         if (!isAmbient && wfConfig.showBattery) {
-            Canvas(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-                val strokeWidth = 5.dp.toPx()
+            Canvas(modifier = Modifier.fillMaxSize().padding(wfConfig.batteryInset.dp)) {
+                val strokeWidth = wfConfig.batteryStrokeWidth.dp.toPx()
                 drawCircle(
-                    color = SurfaceVariant.copy(alpha = 0.6f),
+                    color = SurfaceVariant.copy(alpha = 0.5f),
                     radius = (size.minDimension - strokeWidth) / 2,
                     style = Stroke(width = strokeWidth)
                 )
                 val sweepAngle = (batteryPercent / 100f) * 270f
-                drawArc(
-                    color = when {
+                val arcColor = if (wfConfig.batteryColorMode == "CUSTOM") {
+                    batteryCustomColor
+                } else {
+                    when {
                         batteryPercent > 50 -> GreenNeon
                         batteryPercent > 20 -> OrangeNeon
                         else -> RedNeon
-                    },
+                    }
+                }
+                drawArc(
+                    color = arcColor,
                     startAngle = 135f,
                     sweepAngle = sweepAngle,
                     useCenter = false,
@@ -127,7 +156,57 @@ fun HudWatchFaceScreen(
             }
         }
 
-        // 3. Clock Style: ANALOG vs DIGITAL
+        // 3. PC Connection indicator (Active in both Digital and Analog!)
+        if (!isAmbient && wfConfig.showPcStatus) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset(y = wfConfig.pcStatusOffsetY.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(wfConfig.pcStatusSize.dp)
+                            .background(
+                                color = if (isPcConnected) pcStatusColor else RedNeon,
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isPcConnected) "PC" else "OFF",
+                        color = if (isPcConnected) pcStatusColor else Color.Gray,
+                        fontSize = (wfConfig.pcStatusSize + 3).sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+
+        // 4. Date & Day Indicator (Active in both Digital and Analog!)
+        if (wfConfig.showDate) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset(y = wfConfig.dateOffsetY.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = dateFormat.format(currentTime).uppercase(),
+                    color = if (isAmbient) Color.Gray else dateColor,
+                    fontSize = wfConfig.dateFontSize.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+
+        // 5. Main Clock Area: ANALOG vs DIGITAL
         if (wfConfig.clockStyle == "ANALOG") {
             // Analog Clock Canvas
             Canvas(
@@ -201,27 +280,14 @@ fun HudWatchFaceScreen(
                 )
             }
 
-            // Analog Date & Battery Overlay Text
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(vertical = 36.dp)
-            ) {
-                if (wfConfig.showDate) {
-                    Text(
-                        text = dateFormat.format(currentTime).uppercase(),
-                        color = if (isAmbient) Color.Gray else TextSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.Monospace
-                    )
-                } else {
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-
-                if (wfConfig.showBattery) {
+            // Analog Bottom Battery Percent Text (if enabled)
+            if (wfConfig.showBattery) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset(y = 56.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
                         text = "⚡ $batteryPercent%",
                         color = if (isAmbient) Color.Gray else TextSecondary,
@@ -229,8 +295,6 @@ fun HudWatchFaceScreen(
                         fontWeight = FontWeight.Medium,
                         fontFamily = FontFamily.Monospace
                     )
-                } else {
-                    Spacer(modifier = Modifier.height(10.dp))
                 }
             }
 
@@ -241,45 +305,6 @@ fun HudWatchFaceScreen(
                 verticalArrangement = Arrangement.Center,
                 modifier = Modifier.padding(16.dp)
             ) {
-                // Top Status Bar: Date + PC Connection indicator
-                if (wfConfig.showDate || wfConfig.showPcStatus) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    ) {
-                        if (wfConfig.showDate) {
-                            Text(
-                                text = dateFormat.format(currentTime).uppercase(),
-                                color = if (isAmbient) Color.Gray else TextSecondary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                        if (wfConfig.showDate && wfConfig.showPcStatus && !isAmbient) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                        }
-                        if (wfConfig.showPcStatus && !isAmbient) {
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .background(
-                                        color = if (isPcConnected) GreenNeon else RedNeon,
-                                        shape = androidx.compose.foundation.shape.CircleShape
-                                    )
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (isPcConnected) "PC" else "OFF",
-                                color = if (isPcConnected) GreenNeon else Color.Gray,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-
                 // Big Digital Time
                 Row(
                     verticalAlignment = Alignment.Bottom,
@@ -305,9 +330,9 @@ fun HudWatchFaceScreen(
                     }
                 }
 
-                // Bottom Status: Battery & Mode
+                // Bottom Status: Battery & Navigation Guide
                 if (wfConfig.showBattery) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "⚡ $batteryPercent%",
                         color = if (isAmbient) Color.Gray else TextSecondary,
@@ -318,7 +343,7 @@ fun HudWatchFaceScreen(
                 }
 
                 if (!isAmbient) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "◀ 遙控 | 助理 ▶",
                         color = Color.DarkGray,

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW" class="dark">
 <head>
   <meta charset="UTF-8" />
@@ -94,100 +94,193 @@
             </button>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-12 gap-5 mt-4 items-center">
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-5 mt-4 items-start">
             
             <!-- Circular Preview (5 cols) -->
-            <div class="sm:col-span-5 flex flex-col items-center justify-center">
+            <div class="sm:col-span-5 flex flex-col items-center justify-center sticky top-4">
               <div class="text-[10px] text-slate-400 mb-2 font-mono">450x450 實機圓形畫布預覽</div>
-              <div class="relative w-52 h-52 rounded-full border-4 border-slate-700 bg-black overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.8)] flex items-center justify-center">
+              <div class="relative w-56 h-56 rounded-full border-4 border-slate-700 bg-black overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.8)] flex items-center justify-center select-none">
                 <!-- Background Image layer -->
                 <img id="previewBgImg" src="" class="absolute inset-0 w-full h-full object-cover hidden" />
                 <!-- Dim Overlay layer -->
                 <div id="previewDimOverlay" class="absolute inset-0 bg-black pointer-events-none" style="opacity: 0.25;"></div>
+                
                 <!-- Battery Ring SVG -->
-                <svg id="previewBatteryRing" class="absolute inset-0 w-full h-full -rotate-90 pointer-events-none p-1.5" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="46" stroke="#222933" stroke-width="4" fill="none" />
-                  <circle cx="50" cy="50" r="46" stroke="#00E676" stroke-width="4" stroke-dasharray="289" stroke-dashoffset="60" stroke-linecap="round" fill="none" />
+                <svg id="previewBatteryRingSvg" class="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+                  <circle id="previewBatteryTrack" cx="50" cy="50" r="48" stroke="#222933" stroke-width="3" fill="none" opacity="0.6" />
+                  <circle id="previewBatteryProgress" cx="50" cy="50" r="48" stroke="#00E676" stroke-width="3" stroke-dasharray="301" stroke-dashoffset="65" stroke-linecap="round" fill="none" />
                 </svg>
+
+                <!-- Independent PC Connection Indicator -->
+                <div id="previewPcStatusLayer" class="absolute z-20 flex items-center justify-center transition-all pointer-events-none" style="transform: translateY(-74px);">
+                  <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-xs">
+                    <span id="previewPcDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span id="previewPcText" class="text-[9px] font-mono font-bold text-emerald-400">PC</span>
+                  </div>
+                </div>
+
+                <!-- Independent Date & Day Layer -->
+                <div id="previewDateLayer" class="absolute z-20 flex items-center justify-center transition-all pointer-events-none" style="transform: translateY(-52px);">
+                  <span id="previewDateText" class="font-mono font-semibold tracking-wider text-[11px] text-slate-400">09/18 週五</span>
+                </div>
+
                 <!-- Digital Clock Layout -->
                 <div id="previewDigitalBox" class="relative z-10 flex flex-col items-center justify-center text-center">
-                  <div id="previewDate" class="text-[9px] font-mono text-slate-300 font-medium tracking-wider mb-0.5">09/18 週五 🟢 PC</div>
                   <div class="flex items-baseline font-mono font-black tracking-tighter" style="color: #00E5FF;">
                     <span id="previewHourMin" class="text-3xl">17:45</span>
                     <span id="previewSec" class="text-xs text-emerald-400 ml-0.5 font-bold">:32</span>
                   </div>
                   <div id="previewBatteryText" class="text-[9px] font-mono text-slate-300 mt-1">⚡ 91%</div>
                 </div>
+
                 <!-- Analog Clock Canvas Layout -->
-                <canvas id="previewAnalogCanvas" width="208" height="208" class="absolute inset-0 z-10 hidden pointer-events-none"></canvas>
+                <canvas id="previewAnalogCanvas" width="224" height="224" class="absolute inset-0 z-10 hidden pointer-events-none"></canvas>
               </div>
             </div>
 
             <!-- Controls (7 cols) -->
-            <div class="sm:col-span-7 flex flex-col gap-3.5">
+            <div class="sm:col-span-7 flex flex-col gap-3">
               
-              <!-- Background Uploader -->
-              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
-                <label class="text-xs font-bold text-slate-300 flex items-center justify-between">
-                  <span>🖼️ 個人背景照片 / 動圖</span>
-                  <span id="uploadState" class="text-[10px] text-cyan-400 font-normal">支援 JPG, PNG, WebP, GIF</span>
-                </label>
-                <div class="mt-2 flex items-center gap-2">
+              <!-- Background & Style Accordion -->
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-200">🖼️ 背景與時鐘主體</span>
+                  <span id="uploadState" class="text-[10px] text-cyan-400 font-normal">450x450 WebP</span>
+                </div>
+                
+                <div class="flex items-center gap-2">
                   <input type="file" id="bgFileInput" accept="image/*" class="hidden" onchange="handleBgUpload(this)" />
-                  <button onclick="document.getElementById('bgFileInput').click()" class="flex-1 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white rounded-lg border border-slate-700 transition">
-                    📁 選擇檔案上傳 (自動裁切為450x450)
+                  <button onclick="document.getElementById('bgFileInput').click()" class="flex-1 py-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white rounded-lg border border-slate-700 transition">
+                    📁 選擇個人照片
                   </button>
-                  <button onclick="resetBg()" class="py-1.5 px-2.5 bg-slate-800/60 hover:bg-slate-800 text-[11px] text-rose-400 rounded-lg border border-slate-800 transition">
-                    移除
+                  <button onclick="resetBg()" class="py-1 px-2.5 bg-slate-800/60 hover:bg-slate-800 text-[11px] text-rose-400 rounded-lg border border-slate-800 transition">
+                    移除背景
                   </button>
                 </div>
-              </div>
 
-              <!-- Clock Style Selector -->
-              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
-                <label class="text-xs font-bold text-slate-300">⏱️ 時鐘樣式</label>
-                <div class="grid grid-cols-2 gap-2 mt-2">
+                <div class="grid grid-cols-2 gap-2">
                   <button type="button" onclick="setClockStyle('DIGITAL')" id="styleBtnDigital" class="py-1.5 px-2 rounded-lg border text-xs font-bold transition bg-cyan-500/20 border-cyan-500/60 text-cyan-300">
                     數字 HUD 模式
                   </button>
                   <button type="button" onclick="setClockStyle('ANALOG')" id="styleBtnAnalog" class="py-1.5 px-2 rounded-lg border text-xs font-bold transition bg-slate-800/60 border-slate-700 text-slate-400">
-                    經典指針模式 (每秒跳動)
+                    經典指針模式
                   </button>
                 </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/60">
+                  <div>
+                    <label class="text-[11px] font-semibold text-slate-400 block mb-1">時鐘顏色</label>
+                    <div class="flex items-center gap-2">
+                      <input type="color" id="clockColorInput" value="#00E5FF" onchange="updateWfColor(this.value)" class="w-7 h-7 rounded border-0 bg-transparent cursor-pointer" />
+                      <span id="clockColorHex" class="text-xs font-mono text-cyan-300">#00E5FF</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-[11px] font-semibold text-slate-400">防眩暗度</label>
+                      <span id="dimValLabel" class="text-[11px] font-mono text-cyan-400">25%</span>
+                    </div>
+                    <input type="range" id="dimRange" min="0" max="70" value="25" oninput="updateDim(this.value)" class="w-full accent-cyan-400" />
+                  </div>
+                </div>
               </div>
 
-              <!-- Color & Dimming Slider -->
-              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 grid grid-cols-2 gap-3">
-                <div>
-                  <label class="text-[11px] font-semibold text-slate-400 block mb-1">時鐘主色調</label>
+              <!-- Battery Arc Card -->
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-200">
+                    <input type="checkbox" id="chkBattery" checked onchange="toggleWidget('battery', this.checked)" class="accent-cyan-400 rounded" />
+                    <span>⚡ 電量弧度環</span>
+                  </label>
                   <div class="flex items-center gap-2">
-                    <input type="color" id="clockColorInput" value="#00E5FF" onchange="updateWfColor(this.value)" class="w-8 h-8 rounded border-0 bg-transparent cursor-pointer" />
-                    <span id="clockColorHex" class="text-xs font-mono text-cyan-300">#00E5FF</span>
+                    <select id="batteryColorMode" onchange="updateBatteryColorMode(this.value)" class="bg-slate-800 border border-slate-700 text-[11px] text-slate-300 rounded px-1.5 py-0.5">
+                      <option value="DYNAMIC">動態電量色</option>
+                      <option value="CUSTOM">自訂顏色</option>
+                    </select>
+                    <div id="batteryCustomColorWrapper" class="hidden items-center">
+                      <input type="color" id="batteryColorInput" value="#00E676" onchange="updateBatteryCustomColor(this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" />
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div class="flex items-center justify-between mb-1">
-                    <label class="text-[11px] font-semibold text-slate-400">防眩暗度濾鏡</label>
-                    <span id="dimValLabel" class="text-[11px] font-mono text-cyan-400">25%</span>
+                
+                <div class="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/60">
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-[11px] text-slate-400">邊距貼邊 (Inset)</label>
+                      <span id="batteryInsetLabel" class="text-[10px] font-mono text-cyan-400">4dp</span>
+                    </div>
+                    <input type="range" id="batteryInsetRange" min="0" max="16" value="4" oninput="updateBatteryInset(this.value)" class="w-full accent-cyan-400" />
                   </div>
-                  <input type="range" id="dimRange" min="0" max="70" value="25" oninput="updateDim(this.value)" class="w-full accent-cyan-400" />
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-[11px] text-slate-400">線條粗細 (Width)</label>
+                      <span id="batteryStrokeLabel" class="text-[10px] font-mono text-cyan-400">6dp</span>
+                    </div>
+                    <input type="range" id="batteryStrokeRange" min="2" max="14" value="6" oninput="updateBatteryStroke(this.value)" class="w-full accent-cyan-400" />
+                  </div>
                 </div>
               </div>
 
-              <!-- Widgets Checkboxes -->
-              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between text-xs text-slate-300">
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" id="chkBattery" checked onchange="toggleWidget('battery', this.checked)" class="accent-cyan-400 rounded" />
-                  <span>電量弧度環</span>
-                </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" id="chkDate" checked onchange="toggleWidget('date', this.checked)" class="accent-cyan-400 rounded" />
-                  <span>日期與星期</span>
-                </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" id="chkPcStatus" checked onchange="toggleWidget('pcStatus', this.checked)" class="accent-cyan-400 rounded" />
-                  <span>電腦狀態燈</span>
-                </label>
+              <!-- Date & Weekday Card -->
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-200">
+                    <input type="checkbox" id="chkDate" checked onchange="toggleWidget('date', this.checked)" class="accent-cyan-400 rounded" />
+                    <span>📅 日期與星期</span>
+                  </label>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[11px] text-slate-400">顏色:</span>
+                    <input type="color" id="dateColorInput" value="#94A3B8" onchange="updateDateColor(this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/60">
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-[11px] text-slate-400">字體大小</label>
+                      <span id="dateSizeLabel" class="text-[10px] font-mono text-cyan-400">11sp</span>
+                    </div>
+                    <input type="range" id="dateSizeRange" min="8" max="20" value="11" oninput="updateDateSize(this.value)" class="w-full accent-cyan-400" />
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-[11px] text-slate-400">垂直位置 (Y軸)</label>
+                      <span id="dateOffsetYLabel" class="text-[10px] font-mono text-cyan-400">-52dp</span>
+                    </div>
+                    <input type="range" id="dateOffsetYRange" min="-100" max="100" value="-52" oninput="updateDateOffsetY(this.value)" class="w-full accent-cyan-400" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- PC Status Indicator Card -->
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-200">
+                    <input type="checkbox" id="chkPcStatus" checked onchange="toggleWidget('pcStatus', this.checked)" class="accent-cyan-400 rounded" />
+                    <span>🟢 電腦狀態指示燈 (指針/數位通用)</span>
+                  </label>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[11px] text-slate-400">燈號色:</span>
+                    <input type="color" id="pcStatusColorInput" value="#00E676" onchange="updatePcStatusColor(this.value)" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer" />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/60">
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-[11px] text-slate-400">燈號大小</label>
+                      <span id="pcStatusSizeLabel" class="text-[10px] font-mono text-cyan-400">7dp</span>
+                    </div>
+                    <input type="range" id="pcStatusSizeRange" min="4" max="14" value="7" oninput="updatePcStatusSize(this.value)" class="w-full accent-cyan-400" />
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-[11px] text-slate-400">垂直位置 (Y軸)</label>
+                      <span id="pcStatusOffsetYLabel" class="text-[10px] font-mono text-cyan-400">-74dp</span>
+                    </div>
+                    <input type="range" id="pcStatusOffsetYRange" min="-100" max="100" value="-74" oninput="updatePcStatusOffsetY(this.value)" class="w-full accent-cyan-400" />
+                  </div>
+                </div>
               </div>
 
             </div>
@@ -245,8 +338,18 @@
       clock_color: "#00E5FF",
       dim_percent: 25,
       show_battery: true,
+      battery_color_mode: "DYNAMIC",
+      battery_custom_color: "#00E676",
+      battery_stroke_width: 6,
+      battery_inset: 4,
       show_date: true,
+      date_color: "#94A3B8",
+      date_font_size: 11,
+      date_offset_y: -52,
       show_pc_status: true,
+      pc_status_color: "#00E676",
+      pc_status_size: 7,
+      pc_status_offset_y: -74,
       has_custom_bg: false
     };
     let dashboardWs = null;
@@ -284,13 +387,37 @@
 
     // Watch face UI controls
     function applyWfConfigToUI() {
+      // Clock & Dim
       document.getElementById('clockColorInput').value = currentWfConfig.clock_color || "#00E5FF";
       document.getElementById('clockColorHex').innerText = currentWfConfig.clock_color || "#00E5FF";
-      document.getElementById('dimRange').value = currentWfConfig.dim_percent || 25;
-      document.getElementById('dimValLabel').innerText = `${currentWfConfig.dim_percent || 25}%`;
+      document.getElementById('dimRange').value = currentWfConfig.dim_percent ?? 25;
+      document.getElementById('dimValLabel').innerText = `${currentWfConfig.dim_percent ?? 25}%`;
+
+      // Battery Arc
       document.getElementById('chkBattery').checked = currentWfConfig.show_battery !== false;
+      document.getElementById('batteryColorMode').value = currentWfConfig.battery_color_mode || "DYNAMIC";
+      document.getElementById('batteryColorInput').value = currentWfConfig.battery_custom_color || "#00E676";
+      document.getElementById('batteryCustomColorWrapper').style.display = (currentWfConfig.battery_color_mode === 'CUSTOM') ? 'flex' : 'none';
+      document.getElementById('batteryInsetRange').value = currentWfConfig.battery_inset ?? 4;
+      document.getElementById('batteryInsetLabel').innerText = `${currentWfConfig.battery_inset ?? 4}dp`;
+      document.getElementById('batteryStrokeRange').value = currentWfConfig.battery_stroke_width ?? 6;
+      document.getElementById('batteryStrokeLabel').innerText = `${currentWfConfig.battery_stroke_width ?? 6}dp`;
+
+      // Date
       document.getElementById('chkDate').checked = currentWfConfig.show_date !== false;
+      document.getElementById('dateColorInput').value = currentWfConfig.date_color || "#94A3B8";
+      document.getElementById('dateSizeRange').value = currentWfConfig.date_font_size ?? 11;
+      document.getElementById('dateSizeLabel').innerText = `${currentWfConfig.date_font_size ?? 11}sp`;
+      document.getElementById('dateOffsetYRange').value = currentWfConfig.date_offset_y ?? -52;
+      document.getElementById('dateOffsetYLabel').innerText = `${currentWfConfig.date_offset_y ?? -52}dp`;
+
+      // PC Status
       document.getElementById('chkPcStatus').checked = currentWfConfig.show_pc_status !== false;
+      document.getElementById('pcStatusColorInput').value = currentWfConfig.pc_status_color || "#00E676";
+      document.getElementById('pcStatusSizeRange').value = currentWfConfig.pc_status_size ?? 7;
+      document.getElementById('pcStatusSizeLabel').innerText = `${currentWfConfig.pc_status_size ?? 7}dp`;
+      document.getElementById('pcStatusOffsetYRange').value = currentWfConfig.pc_status_offset_y ?? -74;
+      document.getElementById('pcStatusOffsetYLabel').innerText = `${currentWfConfig.pc_status_offset_y ?? -74}dp`;
 
       if (currentWfConfig.has_custom_bg) {
         const bgImg = document.getElementById('previewBgImg');
@@ -328,6 +455,63 @@
       document.getElementById('previewDimOverlay').style.opacity = val / 100;
     }
 
+    function updateBatteryColorMode(mode) {
+      currentWfConfig.battery_color_mode = mode;
+      document.getElementById('batteryCustomColorWrapper').style.display = (mode === 'CUSTOM') ? 'flex' : 'none';
+      updatePreviewDisplay();
+    }
+
+    function updateBatteryCustomColor(hex) {
+      currentWfConfig.battery_custom_color = hex;
+      updatePreviewDisplay();
+    }
+
+    function updateBatteryInset(val) {
+      currentWfConfig.battery_inset = parseInt(val);
+      document.getElementById('batteryInsetLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
+
+    function updateBatteryStroke(val) {
+      currentWfConfig.battery_stroke_width = parseInt(val);
+      document.getElementById('batteryStrokeLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
+
+    function updateDateColor(hex) {
+      currentWfConfig.date_color = hex;
+      updatePreviewDisplay();
+    }
+
+    function updateDateSize(val) {
+      currentWfConfig.date_font_size = parseInt(val);
+      document.getElementById('dateSizeLabel').innerText = `${val}sp`;
+      updatePreviewDisplay();
+    }
+
+    function updateDateOffsetY(val) {
+      currentWfConfig.date_offset_y = parseInt(val);
+      document.getElementById('dateOffsetYLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
+
+    function updatePcStatusColor(hex) {
+      currentWfConfig.pc_status_color = hex;
+      updatePreviewDisplay();
+    }
+
+    function updatePcStatusSize(val) {
+      currentWfConfig.pc_status_size = parseInt(val);
+      document.getElementById('pcStatusSizeLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
+
+    function updatePcStatusOffsetY(val) {
+      currentWfConfig.pc_status_offset_y = parseInt(val);
+      document.getElementById('pcStatusOffsetYLabel').innerText = `${val}dp`;
+      updatePreviewDisplay();
+    }
+
     function toggleWidget(widget, isChecked) {
       if (widget === 'battery') currentWfConfig.show_battery = isChecked;
       if (widget === 'date') currentWfConfig.show_date = isChecked;
@@ -336,11 +520,70 @@
     }
 
     function updatePreviewDisplay() {
-      document.getElementById('previewBatteryRing').style.display = currentWfConfig.show_battery ? 'block' : 'none';
-      document.getElementById('previewBatteryText').style.display = currentWfConfig.show_battery ? 'block' : 'none';
-      document.getElementById('previewDate').style.display = currentWfConfig.show_date ? 'block' : 'none';
-      document.getElementById('previewDimOverlay').style.opacity = (currentWfConfig.dim_percent || 25) / 100;
+      // Background dim
+      document.getElementById('previewDimOverlay').style.opacity = (currentWfConfig.dim_percent ?? 25) / 100;
       document.getElementById('previewHourMin').style.color = currentWfConfig.clock_color || '#00E5FF';
+
+      // Battery Arc
+      const showBattery = currentWfConfig.show_battery !== false;
+      document.getElementById('previewBatteryRingSvg').style.display = showBattery ? 'block' : 'none';
+      document.getElementById('previewBatteryText').style.display = showBattery ? 'block' : 'none';
+      if (showBattery) {
+        const inset = currentWfConfig.battery_inset ?? 4;
+        const strokeW = currentWfConfig.battery_stroke_width ?? 6;
+        const scale = 100 / 225; // Map 225 radius to 50 viewBox
+        const r = Math.max(10, 50 - (inset * scale) - (strokeW * scale / 2));
+        const svgStrokeW = Math.max(1.5, strokeW * scale);
+        
+        const track = document.getElementById('previewBatteryTrack');
+        const prog = document.getElementById('previewBatteryProgress');
+        track.setAttribute('r', r);
+        track.setAttribute('stroke-width', svgStrokeW);
+        prog.setAttribute('r', r);
+        prog.setAttribute('stroke-width', svgStrokeW);
+        
+        const circumference = 2 * Math.PI * r;
+        const arcLength = circumference * 0.75;
+        const progressOffset = circumference - (arcLength * 0.91);
+        prog.setAttribute('stroke-dasharray', `${arcLength} ${circumference}`);
+        prog.setAttribute('stroke-dashoffset', progressOffset);
+        
+        const bColor = (currentWfConfig.battery_color_mode === 'CUSTOM') 
+          ? (currentWfConfig.battery_custom_color || '#00E676') 
+          : '#00E676';
+        prog.setAttribute('stroke', bColor);
+      }
+
+      // Date Layer
+      const showDate = currentWfConfig.show_date !== false;
+      const dateLayer = document.getElementById('previewDateLayer');
+      dateLayer.style.display = showDate ? 'flex' : 'none';
+      if (showDate) {
+        const dateText = document.getElementById('previewDateText');
+        dateText.style.color = currentWfConfig.date_color || '#94A3B8';
+        dateText.style.fontSize = `${currentWfConfig.date_font_size ?? 11}px`;
+        const previewY = (currentWfConfig.date_offset_y ?? -52) * 0.5;
+        dateLayer.style.transform = `translateY(${previewY}px)`;
+      }
+
+      // PC Status Layer
+      const showPc = currentWfConfig.show_pc_status !== false;
+      const pcLayer = document.getElementById('previewPcStatusLayer');
+      pcLayer.style.display = showPc ? 'flex' : 'none';
+      if (showPc) {
+        const pcColor = currentWfConfig.pc_status_color || '#00E676';
+        const pcSize = currentWfConfig.pc_status_size ?? 7;
+        const dot = document.getElementById('previewPcDot');
+        const text = document.getElementById('previewPcText');
+        dot.style.backgroundColor = pcColor;
+        dot.style.width = `${Math.max(4, pcSize * 0.8)}px`;
+        dot.style.height = `${Math.max(4, pcSize * 0.8)}px`;
+        text.style.color = pcColor;
+        text.style.fontSize = `${Math.max(8, (pcSize + 3) * 0.8)}px`;
+        
+        const previewY = (currentWfConfig.pc_status_offset_y ?? -74) * 0.5;
+        pcLayer.style.transform = `translateY(${previewY}px)`;
+      }
     }
 
     async function handleBgUpload(input) {

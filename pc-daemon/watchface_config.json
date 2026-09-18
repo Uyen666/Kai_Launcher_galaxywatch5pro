@@ -1,9 +1,19 @@
 {
-  "clock_color": "#00E5FF",
-  "clock_style": "DIGITAL",
+  "clock_style": "ANALOG",
+  "date_color": "#E2E8F0",
+  "date_offset_y": -52,
+  "pc_status_size": 7,
+  "pc_status_color": "#00E676",
   "show_battery": true,
-  "show_pc_status": true,
-  "dim_percent": 30,
+  "battery_stroke_width": 6,
+  "battery_custom_color": "#00E676",
+  "dim_percent": 25,
+  "show_date": true,
+  "battery_color_mode": "DYNAMIC",
+  "battery_inset": 4,
+  "date_font_size": 12,
   "has_custom_bg": true,
-  "show_date": true
+  "clock_color": "#f7f5f9",
+  "show_pc_status": true,
+  "pc_status_offset_y": -76
 }

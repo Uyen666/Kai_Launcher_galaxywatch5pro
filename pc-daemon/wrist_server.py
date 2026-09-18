@@ -1,4 +1,4 @@
-﻿import os
+import os
 import io
 import json
 import ctypes
@@ -93,10 +93,20 @@ def load_wf_config():
         "clock_style": "DIGITAL",
         "clock_color": "#00E5FF",
         "dim_percent": 25,
-        "show_battery": true,
-        "show_date": true,
-        "show_pc_status": true,
-        "has_custom_bg": false
+        "show_battery": True,
+        "battery_color_mode": "DYNAMIC",
+        "battery_custom_color": "#00E676",
+        "battery_stroke_width": 6,
+        "battery_inset": 4,
+        "show_date": True,
+        "date_color": "#94A3B8",
+        "date_font_size": 11,
+        "date_offset_y": -52,
+        "show_pc_status": True,
+        "pc_status_color": "#00E676",
+        "pc_status_size": 7,
+        "pc_status_offset_y": -74,
+        "has_custom_bg": False
     }
 
 def save_wf_config(data):
