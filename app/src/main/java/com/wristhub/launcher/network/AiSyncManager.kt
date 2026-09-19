@@ -76,6 +76,7 @@ object AiSyncManager {
 
     fun isAiTaskActive(): Boolean {
         return AudioRecorderManager.isAnyRecording ||
+               com.wristhub.launcher.audio.WakeAssistantManager.isRecordingOrProcessing() ||
                _isProcessing.value ||
                WatchTtsManager.isCurrentlySpeaking
     }
@@ -115,7 +116,8 @@ object AiSyncManager {
             val url = "http://$ip:8765/api/ai/voice"
             Log.d(TAG, "Uploading audio to PC: $url (${audioFile.length()} bytes)")
 
-            val fileBody = audioFile.asRequestBody("audio/mp4".toMediaType())
+            val mime = if (audioFile.name.endsWith(".wav", ignoreCase = true)) "audio/wav" else "audio/mp4"
+            val fileBody = audioFile.asRequestBody(mime.toMediaType())
             val requestBody = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("file", audioFile.name, fileBody)
@@ -190,8 +192,9 @@ object AiSyncManager {
 
             val audioBytes = audioFile.readBytes()
             val b64Audio = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
+            val mimeType = if (audioFile.name.endsWith(".wav", ignoreCase = true)) "audio/wav" else "audio/mp4"
 
-            Log.d(TAG, "Direct Gemini: sending ${audioBytes.size} bytes (b64: ${b64Audio.length}) to $model...")
+            Log.d(TAG, "Direct Gemini: sending ${audioBytes.size} bytes (mime: $mimeType, b64: ${b64Audio.length}) to $model...")
 
             val payloadJson = JSONObject().apply {
                 val contentsArray = JSONArray().apply {
@@ -199,7 +202,7 @@ object AiSyncManager {
                         val partsArray = JSONArray().apply {
                             put(JSONObject().apply {
                                 put("inline_data", JSONObject().apply {
-                                    put("mime_type", "audio/mp4")
+                                    put("mime_type", mimeType)
                                     put("data", b64Audio)
                                 })
                             })

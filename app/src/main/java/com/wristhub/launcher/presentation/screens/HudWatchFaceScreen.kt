@@ -14,12 +14,14 @@ import android.os.Build
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -239,7 +241,18 @@ fun HudWatchFaceScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(Color.Black)
+            .then(
+                if (!isAmbient) {
+                    Modifier.pointerInput(Unit) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                com.wristhub.launcher.audio.WakeAssistantManager.startManualListening()
+                            }
+                        )
+                    }
+                } else Modifier
+            ),
         contentAlignment = Alignment.Center
     ) {
         // 1. Background Layer: In ambient mode, keep black for OLED efficiency. In active mode, render animated or static WebP!

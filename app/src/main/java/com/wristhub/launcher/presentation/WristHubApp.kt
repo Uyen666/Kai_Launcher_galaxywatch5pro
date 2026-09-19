@@ -14,7 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.wear.compose.material.HorizontalPageIndicator
 import androidx.wear.compose.material.PageIndicatorState
 import com.wristhub.launcher.network.PcWebSocketManager
-import com.wristhub.launcher.presentation.screens.AiAssistantScreen
+import com.wristhub.launcher.presentation.components.FloatingReplyCard
+import com.wristhub.launcher.presentation.components.GeminiAuraOverlay
 import com.wristhub.launcher.presentation.screens.HudWatchFaceScreen
 import com.wristhub.launcher.presentation.screens.PcRemoteScreen
 import com.wristhub.launcher.presentation.theme.WristHubTheme
@@ -43,8 +44,8 @@ fun WristHubApp(
             PcWebSocketManager.connect()
         }
 
-        // Interactive 3-page horizontal pager: Left = PC Remote, Center = HUD WatchFace, Right = AI
-        val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
+        // Interactive 2-page horizontal pager: Left = PC Remote, Center = HUD WatchFace
+        val pagerState = rememberPagerState(initialPage = 1, pageCount = { 2 })
         val coroutineScope = rememberCoroutineScope()
 
         // Instant snap to center WatchFace on wake reset
@@ -68,7 +69,7 @@ fun WristHubApp(
                 )
             }
         } else {
-            // Safe Launcher BackHandler: If on Remote or AI, return to center WatchFace.
+            // Safe Launcher BackHandler: If on Remote, return to center WatchFace.
             // If already on center WatchFace, consume back key so the app NEVER exits!
             BackHandler(enabled = true) {
                 if (pagerState.currentPage != 1) {
@@ -85,7 +86,7 @@ fun WristHubApp(
                     override val selectedPage: Int
                         get() = pagerState.currentPage
                     override val pageCount: Int
-                        get() = 3
+                        get() = 2
                 }
             }
 
@@ -132,7 +133,6 @@ fun WristHubApp(
                         when (page) {
                             0 -> PcRemoteScreen(isFocused = pagerState.currentPage == 0)
                             1 -> HudWatchFaceScreen(isAmbient = false)
-                            2 -> AiAssistantScreen()
                         }
                     }
                 }
@@ -142,6 +142,12 @@ fun WristHubApp(
                     pageIndicatorState = pageIndicatorState,
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
+
+                // Siri / Apple Intelligence Bezel Aura Overlay
+                GeminiAuraOverlay()
+
+                // Floating glass response card
+                FloatingReplyCard()
             }
         }
     }

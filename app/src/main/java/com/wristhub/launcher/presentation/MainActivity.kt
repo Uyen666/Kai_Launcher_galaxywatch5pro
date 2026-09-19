@@ -27,11 +27,13 @@ class MainActivity : ComponentActivity() {
         override fun onEnterAmbient(ambientDetails: AmbientLifecycleObserver.AmbientDetails) {
             isAmbient = true
             lastInactiveTimestamp = System.currentTimeMillis()
+            com.wristhub.launcher.audio.WakeAssistantManager.onScreenSleep()
         }
 
         override fun onExitAmbient() {
             isAmbient = false
             checkAndTriggerWakeReset()
+            com.wristhub.launcher.audio.WakeAssistantManager.onScreenInteractive()
         }
 
         override fun onUpdateAmbient() {
@@ -64,6 +66,14 @@ class MainActivity : ComponentActivity() {
         // Pre-warm TextToSpeech engine so first utterance is instant
         com.wristhub.launcher.audio.WatchTtsManager.init(this)
 
+        // Initialize Raise-to-Speak Wake Assistant
+        com.wristhub.launcher.audio.WakeAssistantManager.init(this)
+
+        // Ensure RECORD_AUDIO permission is granted
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 101)
+        }
+
         // Register ambient observer for natural AOD behavior
         lifecycle.addObserver(ambientObserver)
 
@@ -88,12 +98,14 @@ class MainActivity : ComponentActivity() {
         if (lastInactiveTimestamp == 0L) {
             lastInactiveTimestamp = System.currentTimeMillis()
         }
+        com.wristhub.launcher.audio.WakeAssistantManager.onScreenSleep()
     }
 
     override fun onResume() {
         super.onResume()
         if (!isAmbient) {
             checkAndTriggerWakeReset()
+            com.wristhub.launcher.audio.WakeAssistantManager.onScreenInteractive()
         }
     }
 
