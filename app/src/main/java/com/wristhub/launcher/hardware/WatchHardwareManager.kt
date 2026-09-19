@@ -1,6 +1,7 @@
 package com.wristhub.launcher.hardware
 
 import android.app.Activity
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -102,26 +103,65 @@ object WatchHardwareManager {
     fun adjustVolume(direction: Int) {
         val ctx = appContext ?: return
         val audioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
-        // 調節媒體與鬧鐘音量
-        audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
-        audioManager.adjustStreamVolume(AudioManager.STREAM_ALARM, direction, 0)
+        try {
+            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
+            audioManager.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, direction, 0)
+            audioManager.adjustStreamVolume(AudioManager.STREAM_ALARM, direction, 0)
+        } catch (e: Exception) {
+            Log.e(TAG, "Adjust volume error: ${e.message}")
+        }
     }
 
     fun setMute(mute: Boolean) {
         val ctx = appContext ?: return
         val audioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
-        if (mute) {
-            audioManager.ringerMode = AudioManager.RINGER_MODE_SILENT
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
-        } else {
-            audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
+
+        // 1. 安全切換 ringerMode (若無 ACCESS_NOTIFICATION_POLICY 權限則捕獲異常，避免拋出 SecurityException)
+        try {
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            if (nm?.isNotificationPolicyAccessGranted == true) {
+                audioManager.ringerMode = if (mute) AudioManager.RINGER_MODE_SILENT else AudioManager.RINGER_MODE_NORMAL
+            } else if (mute) {
+                try {
+                    audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+                } catch (e: Exception) {
+                    Log.w(TAG, "Cannot switch ringerMode to vibrate: ${e.message}")
+                }
+            } else {
+                try {
+                    audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
+                } catch (e: Exception) {
+                    Log.w(TAG, "Cannot switch ringerMode to normal: ${e.message}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Ringer mode adjust error (no DND permission): ${e.message}")
+        }
+
+        // 2. 靜音/恢復各音訊串流音量 (媒體、提示音、系統音)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val flag = if (mute) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE
+                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, flag, 0)
+                audioManager.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, flag, 0)
+                audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, flag, 0)
+            }
+            if (mute) {
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Stream volume adjust error: ${e.message}")
         }
     }
 
     fun setVibrateMode() {
         val ctx = appContext ?: return
         val audioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
-        audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+        try {
+            audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+        } catch (e: Exception) {
+            Log.w(TAG, "Cannot set ringer mode to vibrate: ${e.message}")
+        }
         vibratePattern(longArrayOf(0, 100, 80, 100))
     }
 
@@ -215,32 +255,40 @@ object WatchHardwareManager {
         if (action.isNullOrBlank() || action == "NONE") return
         Log.d(TAG, "Executing Hardware Action: $action (params: $params)")
 
-        when (action) {
-            "FLASHLIGHT_ON" -> setFlashlight(true)
-            "FLASHLIGHT_OFF" -> setFlashlight(false)
-            "WATCH_VOLUME_UP" -> adjustVolume(AudioManager.ADJUST_RAISE)
-            "WATCH_VOLUME_DOWN" -> adjustVolume(AudioManager.ADJUST_LOWER)
-            "WATCH_MUTE" -> setMute(true)
-            "WATCH_VIBRATE" -> setVibrateMode()
-            "SET_TIMER" -> {
-                val minutes = (params?.get("minutes") as? Number)?.toInt() ?: 0
-                val seconds = (params?.get("seconds") as? Number)?.toInt() ?: 0
-                val totalSecs = if (minutes > 0 || seconds > 0) minutes * 60 + seconds else 180
-                WatchTimerManager.startTimer(totalSecs)
+        try {
+            when (action) {
+                "FLASHLIGHT_ON" -> setFlashlight(true)
+                "FLASHLIGHT_OFF" -> setFlashlight(false)
+                "WATCH_VOLUME_UP" -> adjustVolume(AudioManager.ADJUST_RAISE)
+                "WATCH_VOLUME_DOWN" -> adjustVolume(AudioManager.ADJUST_LOWER)
+                "WATCH_MUTE" -> setMute(true)
+                "WATCH_VIBRATE" -> setVibrateMode()
+                "SET_TIMER" -> {
+                    val minutes = (params?.get("minutes") as? Number)?.toInt() ?: 0
+                    val seconds = (params?.get("seconds") as? Number)?.toInt() ?: 0
+                    val totalSecs = if (minutes > 0 || seconds > 0) minutes * 60 + seconds else 180
+                    WatchTimerManager.startTimer(totalSecs)
+                }
+                "CANCEL_TIMER" -> WatchTimerManager.cancelTimer()
+                "SET_ALARM" -> {
+                    val hour = (params?.get("hour") as? Number)?.toInt() ?: 8
+                    val minute = (params?.get("minute") as? Number)?.toInt() ?: 0
+                    val title = params?.get("title")?.toString() ?: "Gemini 鬧鐘"
+                    setAlarm(hour, minute, title)
+                }
+                // PC 連線指令交由 PC WebSocket 轉發 (若有在線)
+                "MUTE_TOGGLE", "VOLUME_UP", "VOLUME_DOWN", "PLAY_PAUSE",
+                "NEXT_TRACK", "PREV_TRACK", "LOCK_PC", "SHOW_DESKTOP",
+                "OPEN_NOTEPAD", "OPEN_CALC" -> {
+                    if (com.wristhub.launcher.network.PcWebSocketManager.isConnected.value) {
+                        com.wristhub.launcher.network.PcWebSocketManager.sendCommand(action)
+                    } else {
+                        Log.w(TAG, "Ignored PC action $action because PC is offline")
+                    }
+                }
             }
-            "CANCEL_TIMER" -> WatchTimerManager.cancelTimer()
-            "SET_ALARM" -> {
-                val hour = (params?.get("hour") as? Number)?.toInt() ?: 8
-                val minute = (params?.get("minute") as? Number)?.toInt() ?: 0
-                val title = params?.get("title")?.toString() ?: "Gemini 鬧鐘"
-                setAlarm(hour, minute, title)
-            }
-            // PC 連線指令交由 PC WebSocket 轉發 (若有在線)
-            "MUTE_TOGGLE", "VOLUME_UP", "VOLUME_DOWN", "PLAY_PAUSE",
-            "NEXT_TRACK", "PREV_TRACK", "LOCK_PC", "SHOW_DESKTOP",
-            "OPEN_NOTEPAD", "OPEN_CALC" -> {
-                com.wristhub.launcher.network.PcWebSocketManager.sendCommand(action)
-            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to execute action $action: ${e.message}", e)
         }
     }
 }

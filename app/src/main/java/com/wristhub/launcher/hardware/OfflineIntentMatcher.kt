@@ -94,7 +94,31 @@ object OfflineIntentMatcher {
             )
         }
 
-        // 6. 音量與震動控制
+        // 6. 電腦遙控意圖 (若明確指定電腦)
+        if (trimmed.contains("電腦")) {
+            val isPcOnline = com.wristhub.launcher.network.PcWebSocketManager.isConnected.value
+            if (!isPcOnline) {
+                return AiConversation(
+                    userText = trimmed,
+                    aiReply = "目前手錶未連線電腦喔，無法執行電腦操作！",
+                    action = "NONE"
+                )
+            } else {
+                if (trimmed.contains("靜音")) {
+                    return AiConversation(userText = trimmed, aiReply = "已為您切換電腦靜音。", action = "MUTE_TOGGLE")
+                } else if (trimmed.contains("大聲") || trimmed.contains("調大") || trimmed.contains("加")) {
+                    return AiConversation(userText = trimmed, aiReply = "已為您調大電腦音量。", action = "VOLUME_UP")
+                } else if (trimmed.contains("小聲") || trimmed.contains("調小") || trimmed.contains("減")) {
+                    return AiConversation(userText = trimmed, aiReply = "已為您調小電腦音量。", action = "VOLUME_DOWN")
+                } else if (trimmed.contains("暫停") || trimmed.contains("播放")) {
+                    return AiConversation(userText = trimmed, aiReply = "已為您切換電腦播放狀態。", action = "PLAY_PAUSE")
+                } else if (trimmed.contains("鎖定") || trimmed.contains("鎖電腦")) {
+                    return AiConversation(userText = trimmed, aiReply = "已為您鎖定電腦。", action = "LOCK_PC")
+                }
+            }
+        }
+
+        // 7. 手錶音量與震動控制
         if (trimmed.contains("手錶") && (trimmed.contains("大聲") || trimmed.contains("調大"))) {
             return AiConversation(
                 userText = trimmed,

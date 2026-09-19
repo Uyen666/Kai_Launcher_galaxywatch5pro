@@ -31,11 +31,16 @@ object AiSyncManager {
 
     fun getSystemInstruction(): String {
         val sensorContext = WatchHardwareManager.getSensorContextPrompt()
+        val isPcOnline = PcWebSocketManager.isConnected.value
+        val pcStatusText = if (isPcOnline) "已連線 (可正常遠端遙控電腦)" else "未連線 / 離線 (手錶未連接電腦，無法執行電腦指令)"
+
         return """
 你是一個專為 Samsung Galaxy Watch 5 Pro 設計的手腕 Siri / Intelligence 語音助理 (WristHub Assistant)。
 使用者對手錶說了一段話，請依據其語音內容與以下手錶當前實時狀態快照完成任務：
 
 $sensorContext
+[當前系統連線狀態]
+- 電腦連線狀態: $pcStatusText
 
 請完成以下任務：
 1. 完整精確辨識使用者說的話 (transcript)。
@@ -56,7 +61,7 @@ $sensorContext
    - GET_STEP_COUNT (查詢今日步數或運動進度，請直接參考上方狀態快照的步數回覆)
    - INTRODUCE_CAPABILITIES (當詢問你能做什麼/有什麼功能時，請熱情精簡地介紹手電筒、心跳/步數/電量、計時器、鬧鐘與電腦遙控)
    
-   【Windows 電腦遠端遙控 (若連線中)】
+   【Windows 電腦遠端遙控 (僅在電腦連線狀態為「已連線」時可用)】
    - MUTE_TOGGLE (電腦靜音 / 取消靜音)
    - VOLUME_UP (電腦音量加大)
    - VOLUME_DOWN (電腦音量降低)
@@ -68,12 +73,19 @@ $sensorContext
    - OPEN_NOTEPAD (打開記事本)
    - OPEN_CALC (打開計算機)
    
-   - NONE (一般常識問答、天氣、算術、閒聊，不需要硬體操作)
+   - NONE (一般常識問答、天氣、算術、閒聊，或因電腦離線而無法執行的電腦指令)
 
-3. 給予繁體中文回覆 (reply)。
+3. 回覆規則與約束：
+   【電腦離線守則 (極重要)】
+   - 若「電腦連線狀態」為「未連線 / 離線」，且使用者要求操作電腦（如「電腦靜音」、「電腦大聲點」、「電腦暫停」、「鎖定電腦」等）：
+     * action 必須設為 "NONE"（絕不能回傳電腦操作代碼）
+     * reply 必須清楚告知手錶未連線電腦，例如：「目前手錶未連線到電腦喔，無法執行電腦操作！」（嚴禁回答已調整完成）
+   - 若使用者僅說「靜音」或「調大音量」而未特別指明電腦，則一律判定為「手錶本機」控制（WATCH_MUTE 或 WATCH_VOLUME_UP）。
+   
+   【回覆語氣】
+   - 給予繁體中文回覆 (reply)。
    - 語氣自然、親切、口語化，適合手錶小螢幕閱讀與手錶揚聲器朗讀（繁體中文，約 20~45 個字，重點清晰）。
    - 若為查詢心率、步數、電量，請直接引用上方實時狀態快照中的最新數值回答。
-   - 若為電腦指令且手錶未連線電腦，回覆如：「已收到指令，但目前未連線電腦喔」。
 
 請務必嚴格輸出符合以下結構的 JSON：
 {
@@ -325,9 +337,27 @@ $sensorContext
                             reply = cleanText.ifEmpty { reply }
                         }
 
-                        // 立即調用手錶本機硬體與系統控制器
-                        withContext(Dispatchers.Main) {
-                            WatchHardwareManager.executeAction(action, actionParams)
+                        // 雙重防禦：若為電腦指令但手錶處於離線狀態，攔截錯誤宣告
+                        val isPcAction = action in listOf(
+                            "MUTE_TOGGLE", "VOLUME_UP", "VOLUME_DOWN", "PLAY_PAUSE",
+                            "NEXT_TRACK", "PREV_TRACK", "LOCK_PC", "SHOW_DESKTOP",
+                            "OPEN_NOTEPAD", "OPEN_CALC"
+                        )
+                        if (isPcAction && !PcWebSocketManager.isConnected.value) {
+                            Log.w(TAG, "Gemini returned PC action $action while PC is offline! Overriding...")
+                            action = "NONE"
+                            if (!reply.contains("未連線") && !reply.contains("離線")) {
+                                reply = "目前手錶尚未連線到電腦喔，無法執行電腦操作！"
+                            }
+                        }
+
+                        // 立即調用手錶本機硬體與系統控制器（硬體異常不干擾語音對話回傳）
+                        try {
+                            withContext(Dispatchers.Main) {
+                                WatchHardwareManager.executeAction(action, actionParams)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Action execution error: ${e.message}", e)
                         }
 
                         val actionResult = if (action != "NONE") "（本機執行完成）" else null
