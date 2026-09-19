@@ -41,6 +41,58 @@ object TaskManager {
         "com.samsung.android.watch.watchface"
     )
 
+    /**
+     * 動態掃描手錶目前背景正在執行的所有非白名單進程，並加入任務清單供使用者檢視與清理
+     */
+    fun refreshRunningTasks(context: Context) {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return
+        val pm = context.packageManager
+        val runningProcs = try {
+            am.runningAppProcesses
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        val myPkg = context.packageName
+        val foundPackages = mutableSetOf<String>()
+
+        for (proc in runningProcs) {
+            proc.pkgList?.forEach { pkg ->
+                if (pkg !in PROTECTED_PACKAGES && pkg != myPkg) {
+                    foundPackages.add(pkg)
+                }
+            }
+        }
+
+        val current = _recentTasks.value.toMutableList()
+        val allInstalled = AppDrawerManager.installedApps.value
+
+        for (pkg in foundPackages) {
+            if (current.none { it.packageName == pkg }) {
+                val matchedApp = allInstalled.find { it.packageName == pkg }
+                if (matchedApp != null) {
+                    current.add(matchedApp)
+                } else {
+                    try {
+                        val appInfo = pm.getApplicationInfo(pkg, 0)
+                        val label = pm.getApplicationLabel(appInfo).toString()
+                        val icon = pm.getApplicationIcon(appInfo)
+                        current.add(
+                            AppItem(
+                                packageName = pkg,
+                                activityName = "",
+                                label = label,
+                                icon = icon,
+                                iconBitmap = null
+                            )
+                        )
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+        _recentTasks.value = current
+    }
+
     fun recordTask(appItem: AppItem) {
         if (appItem.packageName in PROTECTED_PACKAGES) return
         val current = _recentTasks.value.toMutableList()

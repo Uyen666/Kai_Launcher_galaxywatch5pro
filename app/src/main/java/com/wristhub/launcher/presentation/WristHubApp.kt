@@ -31,7 +31,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.wristhub.launcher.manager.AppDrawerManager
 import com.wristhub.launcher.manager.TaskManager
 import com.wristhub.launcher.presentation.components.AppDrawerOverlay
-import com.wristhub.launcher.presentation.components.TaskManagerOverlay
+import com.wristhub.launcher.presentation.components.TaskManagerScreen
 import kotlinx.coroutines.launch
 
 import androidx.compose.animation.core.Spring
@@ -54,12 +54,25 @@ fun WristHubApp(
             PcWebSocketManager.connect()
         }
 
-        // Interactive 2-page horizontal pager: Left = PC Remote, Center = HUD WatchFace
-        val pagerState = rememberPagerState(initialPage = 1, pageCount = { 2 })
+        // Interactive 3-page horizontal pager:
+        // Page 0 = PC Remote
+        // Page 1 = HUD WatchFace (Center)
+        // Page 2 = Task Manager & Background Cleaner
+        val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
         val coroutineScope = rememberCoroutineScope()
 
         val isDrawerOpen by AppDrawerManager.isDrawerOpen.collectAsState()
         val isTaskManagerOpen by TaskManager.isOverlayOpen.collectAsState()
+
+        // Double-press back key or TaskManager toggle smoothly animates to Page 2
+        LaunchedEffect(isTaskManagerOpen) {
+            if (isTaskManagerOpen) {
+                coroutineScope.launch {
+                    pagerState.animateScrollToPage(if (pagerState.currentPage == 2) 1 else 2)
+                }
+                TaskManager.setOverlayOpen(false)
+            }
+        }
 
         // Instant snap to center WatchFace on wake reset
         LaunchedEffect(resetToWatchFaceTrigger) {
@@ -83,13 +96,11 @@ fun WristHubApp(
             }
         } else {
             // Hierarchical Launcher BackHandler:
-            // 1. If TaskManager is open, close TaskManager.
-            // 2. If AppDrawer is open, close AppDrawer.
-            // 3. If on PC Remote (page 0), return to center WatchFace.
-            // 4. If already on center WatchFace, consume back key so the app NEVER exits!
+            // 1. If AppDrawer is open, close AppDrawer.
+            // 2. If on PC Remote (page 0) or TaskManager (page 2), return to center WatchFace (page 1).
+            // 3. If already on center WatchFace, consume back key so the app NEVER exits!
             BackHandler(enabled = true) {
                 when {
-                    isTaskManagerOpen -> TaskManager.setOverlayOpen(false)
                     isDrawerOpen -> AppDrawerManager.setDrawerOpen(false)
                     pagerState.currentPage != 1 -> {
                         coroutineScope.launch {
@@ -106,7 +117,7 @@ fun WristHubApp(
                     override val selectedPage: Int
                         get() = pagerState.currentPage
                     override val pageCount: Int
-                        get() = 2
+                        get() = 3
                 }
             }
 
@@ -156,6 +167,13 @@ fun WristHubApp(
                                 isAmbient = false,
                                 onOpenAppDrawer = { AppDrawerManager.setDrawerOpen(true) }
                             )
+                            2 -> TaskManagerScreen(
+                                onNavigateBack = {
+                                    coroutineScope.launch {
+                                        pagerState.animateScrollToPage(1)
+                                    }
+                                }
+                            )
                         }
                     }
                 }
@@ -177,12 +195,6 @@ fun WristHubApp(
                 AppDrawerOverlay(
                     isOpen = isDrawerOpen,
                     onDismiss = { AppDrawerManager.setDrawerOpen(false) }
-                )
-
-                // Task Manager Overlay (Double-press Back button)
-                TaskManagerOverlay(
-                    isOpen = isTaskManagerOpen,
-                    onDismiss = { TaskManager.setOverlayOpen(false) }
                 )
 
                 // Siri / Apple Intelligence Bezel Aura Overlay

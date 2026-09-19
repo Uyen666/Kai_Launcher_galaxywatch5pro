@@ -66,16 +66,27 @@ import kotlinx.coroutines.launch
  * 3. 單個任務卡片關閉或頂部「一鍵釋放記憶體」
  * 4. 嚴格白名單永遠保護 WristHub Launcher，絕不誤殺
  */
+/**
+ * 手錶多工任務與背景進程清理頁面 (獨立 Pager 頁面)
+ */
+@Composable
+fun TaskManagerScreen(
+    onNavigateBack: () -> Unit
+) {
+    TaskManagerContent(
+        showDismissHandle = false,
+        onDismiss = onNavigateBack
+    )
+}
+
+/**
+ * 手錶多工任務管理器 (Task Manager Overlay 彈窗模式)
+ */
 @Composable
 fun TaskManagerOverlay(
     isOpen: Boolean,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
-    val recentTasks by TaskManager.recentTasks.collectAsState()
-    val coroutineScope = rememberCoroutineScope()
-    var freedMemToast by remember { mutableStateOf<String?>(null) }
-
     // 開啟時攔截返回鍵
     BackHandler(enabled = isOpen) {
         onDismiss()
@@ -95,29 +106,52 @@ fun TaskManagerOverlay(
             animationSpec = tween(180)
         ) + fadeOut(animationSpec = tween(150))
     ) {
-        val listState = rememberScalingLazyListState()
+        TaskManagerContent(
+            showDismissHandle = true,
+            onDismiss = onDismiss
+        )
+    }
+}
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(CircleShape)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFA080C14),
-                            Color(0xFD0D121F),
-                            Color(0xFF000000)
-                        )
+@Composable
+fun TaskManagerContent(
+    showDismissHandle: Boolean = true,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val recentTasks by TaskManager.recentTasks.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
+    var freedMemToast by remember { mutableStateOf<String?>(null) }
+
+    // 每次進入時自動掃描當前系統正在執行的所有背景進程
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        TaskManager.refreshRunningTasks(context)
+    }
+
+    val listState = rememberScalingLazyListState()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(CircleShape)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFA080C14),
+                        Color(0xFD0D121F),
+                        Color(0xFF000000)
                     )
                 )
+            )
+    ) {
+        ScalingLazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            ScalingLazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // 1. 頂部關閉手柄
+            // 1. 頂部關閉手柄 (僅在 Overlay 模式顯示)
+            if (showDismissHandle) {
                 item {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -153,109 +187,116 @@ fun TaskManagerOverlay(
                         }
                     }
                 }
-
-                // 2. 標題與任務數量
+            } else {
                 item {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+
+            // 2. 標題與任務數量
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                ) {
+                    Text(
+                        text = "多工背景清理",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(
+                                if (recentTasks.isNotEmpty()) Color(0xFFFF5252).copy(alpha = 0.25f)
+                                else Color(0xFF00E5FF).copy(alpha = 0.2f)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "多工背景清理",
-                            fontSize = 14.sp,
+                            text = "${recentTasks.size}",
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = if (recentTasks.isNotEmpty()) Color(0xFFFF5252) else Color(0xFF00E5FF)
+                        )
+                    }
+                }
+            }
+
+            // 3. 一鍵清理大按鈕 (永遠顯示，隨時可深度釋放記憶體)
+            item {
+                Button(
+                    onClick = {
+                        val freedMb = TaskManager.killAllBackgroundTasks(context)
+                        freedMemToast = "已深度釋放 ${freedMb} MB 記憶體！"
+                        coroutineScope.launch {
+                            delay(2000)
+                            freedMemToast = null
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .height(40.dp)
+                        .padding(bottom = 6.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFFE53935),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "🧹",
+                            fontSize = 13.sp
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(Color(0xFFFF5252).copy(alpha = 0.2f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "${recentTasks.size}",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFFF5252)
-                            )
-                        }
+                        Text(
+                            text = "一鍵清理所有背景",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
+            }
 
-                // 3. 一鍵清理大按鈕 (若有任務可清理)
-                if (recentTasks.isNotEmpty()) {
-                    item {
-                        Button(
-                            onClick = {
-                                val freedMb = TaskManager.killAllBackgroundTasks(context)
-                                freedMemToast = "已深度釋放 ${freedMb} MB 記憶體！"
-                                coroutineScope.launch {
-                                    delay(2000)
-                                    freedMemToast = null
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth(0.85f)
-                                .height(40.dp)
-                                .padding(bottom = 6.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                backgroundColor = Color(0xFFE53935),
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Text(
-                                    text = "🧹",
-                                    fontSize = 13.sp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "一鍵清理所有背景",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+            // 4. 清空狀態展示 (若無任務)
+            if (recentTasks.isEmpty()) {
+                item {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = "✨",
+                            fontSize = 26.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "目前無殘留第三方背景",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFE2E8F0)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "仍可點擊上方按鈕深度釋放系統 RAM",
+                            fontSize = 10.sp,
+                            color = Color(0xFF718096),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
+            }
 
-                // 4. 清空狀態展示
-                if (recentTasks.isEmpty()) {
-                    item {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 24.dp)
-                        ) {
-                            Text(
-                                text = "✨",
-                                fontSize = 32.sp
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "目前無殘留背景應用",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFE2E8F0)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "記憶體充裕，手錶運作順暢！",
-                                fontSize = 10.sp,
-                                color = Color(0xFF718096)
-                            )
-                        }
-                    }
-                }
-
-                // 5. 各任務卡片列表
+            // 5. 各任務卡片列表
                 items(recentTasks, key = { it.packageName }) { app ->
                     TaskCardItem(
                         app = app,
@@ -296,7 +337,6 @@ fun TaskManagerOverlay(
             }
         }
     }
-}
 
 /**
  * 單個多工任務卡片
