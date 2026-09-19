@@ -61,7 +61,8 @@ $sensorContext
    - GET_BATTERY_STATUS (查詢手錶電量或續航，請直接參考上方狀態快照給予精確回覆)
    - GET_HEART_RATE (查詢目前心率或心跳，請直接參考上方狀態快照的心率數值回覆)
    - GET_STEP_COUNT (查詢今日步數或運動進度，請直接參考上方狀態快照的步數回覆)
-   - INTRODUCE_CAPABILITIES (當詢問你能做什麼/有什麼功能時，請熱情精簡地介紹手電筒、心跳/步數/電量、計時器、鬧鐘與電腦遙控)
+   - OPEN_APP (開啟/打開手錶內已安裝的應用程式，例如「打開 Spotify」、「開啟設定」、「打開三星健康」、「打開地圖」等，需附帶 action_params: {"app_name": "App名稱"})
+   - INTRODUCE_CAPABILITIES (當詢問你能做什麼/有什麼功能時，請熱情精簡地介紹手電筒、心跳/步數/電量、計時器、鬧鐘、開啟手錶App與電腦打字遙控)
    
    【Windows 電腦遠端遙控 (僅在電腦連線狀態為「已連線」時可用)】
    - TYPE_TEXT (在電腦當前游標處打字/輸入文字。當使用者要求「打字」、「輸入」、「在電腦打...」或要求文字鍵入時使用，需附帶 action_params: {"text": "要打在電腦上的純文字內容"})
@@ -84,8 +85,14 @@ $sensorContext
    - 若使用者指定特定音量百分比（如「音量調到 80%」、「聲音設為 50%」），請回傳 WATCH_VOLUME_SET 並附帶 action_params: {"percent": 數值}。
    - 若使用者僅說「靜音」或「調大音量」而未特別指明電腦，則一律判定為「手錶本機」控制（WATCH_MUTE 或 WATCH_VOLUME_UP）。
 
+   【應用程式開啟規範】
+   - 若為開啟手錶 App (OPEN_APP)，reply 請回答例如：「正在為您開啟「App名稱」...」。
+
+   【電腦打字輸入規範】
+   - 若為在電腦打字 (TYPE_TEXT)，reply 請回答例如：「已為您在電腦輸入「打字內容」！」。
+
    【電腦離線守則 (極重要)】
-   - 若「電腦連線狀態」為「未連線 / 離線」，且使用者要求操作電腦（如「電腦靜音」、「電腦大聲點」、「電腦暫停」、「鎖定電腦」等）：
+   - 若「電腦連線狀態」為「未連線 / 離線」，且使用者要求操作電腦（如「電腦打字」、「電腦靜音」、「電腦大聲點」、「電腦暫停」、「鎖定電腦」等）：
      * action 必須設為 "NONE"（絕不能回傳電腦操作代碼）
      * reply 必須清楚告知手錶未連線電腦，例如：「目前手錶未連線到電腦喔，無法執行電腦操作！」（嚴禁回答已調整完成）
    
@@ -440,10 +447,24 @@ $sensorContext
         onSuccess: (AiConversation) -> Unit
     ): Boolean {
         val matched = OfflineIntentMatcher.match(text) ?: return false
-        val params = if (matched.action == "WATCH_VOLUME_SET") {
-            val p = matched.actionResult?.toIntOrNull() ?: 100
-            mapOf("percent" to p)
-        } else null
+        val params: Map<String, Any>? = when (matched.action) {
+            "WATCH_VOLUME_SET" -> {
+                val p = matched.actionResult?.toIntOrNull() ?: 100
+                mapOf("percent" to p)
+            }
+            "OPEN_APP" -> {
+                val app = matched.actionResult ?: ""
+                mapOf("app_name" to app)
+            }
+            "TYPE_TEXT" -> {
+                val t = matched.actionResult ?: ""
+                if (PcWebSocketManager.isConnected.value) {
+                    PcWebSocketManager.sendCommand("TYPE_TEXT", mapOf("text" to t))
+                }
+                mapOf("text" to t)
+            }
+            else -> null
+        }
         WatchHardwareManager.executeAction(matched.action, params)
         _conversations.value = listOf(matched) + _conversations.value
         _latestReply.value = matched

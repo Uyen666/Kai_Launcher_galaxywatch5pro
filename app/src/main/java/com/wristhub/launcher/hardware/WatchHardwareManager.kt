@@ -333,6 +333,17 @@ object WatchHardwareManager {
                     val title = params?.get("title")?.toString() ?: "Gemini 鬧鐘"
                     setAlarm(hour, minute, title)
                 }
+                "OPEN_APP" -> {
+                    val appName = params?.get("app_name")?.toString()
+                        ?: params?.get("appName")?.toString()
+                        ?: params?.get("name")?.toString()
+                        ?: ""
+                    val ctx = appContext ?: activityRef?.get()
+                    if (ctx != null && appName.isNotBlank()) {
+                        val launchedLabel = com.wristhub.launcher.manager.AppDrawerManager.launchAppByName(ctx, appName)
+                        Log.d(TAG, "OPEN_APP: appName=$appName -> launchedLabel=$launchedLabel")
+                    }
+                }
                 // PC 連線指令交由 PC WebSocket 轉發 (若有在線)
                 "MUTE_TOGGLE", "VOLUME_UP", "VOLUME_DOWN", "PLAY_PAUSE",
                 "NEXT_TRACK", "PREV_TRACK", "LOCK_PC", "SHOW_DESKTOP",

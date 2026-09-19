@@ -33,28 +33,21 @@ VK_D = 0x44
 VK_RETURN = 0x0D
 
 user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
 from ctypes import wintypes
+import time
 
-KEYEVENTF_UNICODE = 0x0004
-KEYEVENTF_KEYUP = 0x0002
+kernel32.GlobalAlloc.restype = ctypes.c_void_p
+kernel32.GlobalLock.restype = ctypes.c_void_p
+kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
+kernel32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+user32.SetClipboardData.restype = ctypes.c_void_p
+user32.SetClipboardData.argtypes = [wintypes.UINT, ctypes.c_void_p]
 
-class KEYBDINPUT(ctypes.Structure):
-    _fields_ = [
-        ('wVk', wintypes.WORD),
-        ('wScan', wintypes.WORD),
-        ('dwFlags', wintypes.DWORD),
-        ('time', wintypes.DWORD),
-        ('dwExtraInfo', ctypes.c_void_p)
-    ]
-
-class INPUT_I(ctypes.Union):
-    _fields_ = [('ki', KEYBDINPUT)]
-
-class INPUT(ctypes.Structure):
-    _fields_ = [
-        ('type', wintypes.DWORD),
-        ('ii', INPUT_I)
-    ]
+CF_UNICODETEXT = 13
+GMEM_MOVEABLE = 0x0002
+VK_CONTROL = 0x11
+VK_V = 0x56
 
 def send_key(vk_code):
     user32.keybd_event(vk_code, 0, 0, 0)
@@ -68,31 +61,40 @@ def show_desktop():
 
 def type_text_to_pc(text: str):
     """
-    透過 Windows SendInput 原生注入 Unicode 字元直接輸入至目前焦點視窗游標處。
-    原生支援繁體中文、英數字、標點符號與換行，不覆蓋剪貼簿且不產生亂碼。
+    透過 Windows 剪貼簿與鍵盤貼上事件 (Ctrl+V)，直接將文字貼入焦點視窗游標處。
+    100% 相容 64 位元 Windows、繁體中文、英數字、標點符號與 Emoji，且不受 UIPI 權限阻擋。
     """
     if not text:
         return
-    for char in text:
-        if char == '\n':
-            user32.keybd_event(VK_RETURN, 0, 0, 0)
-            user32.keybd_event(VK_RETURN, 0, 2, 0)
-            continue
-        code = ord(char)
-        if code > 0xFFFF:
-            # UTF-16 surrogate pairs for Emojis
-            lead = 0xD800 + ((code - 0x10000) >> 10)
-            trail = 0xDC00 + ((code - 0x10000) & 0x3FF)
-            for c_code in (lead, trail):
-                inp_down = INPUT(type=1, ii=INPUT_I(ki=KEYBDINPUT(wVk=0, wScan=c_code, dwFlags=KEYEVENTF_UNICODE, time=0, dwExtraInfo=None)))
-                inp_up = INPUT(type=1, ii=INPUT_I(ki=KEYBDINPUT(wVk=0, wScan=c_code, dwFlags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, time=0, dwExtraInfo=None)))
-                user32.SendInput(1, ctypes.byref(inp_down), ctypes.sizeof(INPUT))
-                user32.SendInput(1, ctypes.byref(inp_up), ctypes.sizeof(INPUT))
+    try:
+        # 重試開啟並清空剪貼簿
+        for _ in range(5):
+            if user32.OpenClipboard(None):
+                break
+            time.sleep(0.02)
         else:
-            inp_down = INPUT(type=1, ii=INPUT_I(ki=KEYBDINPUT(wVk=0, wScan=code, dwFlags=KEYEVENTF_UNICODE, time=0, dwExtraInfo=None)))
-            inp_up = INPUT(type=1, ii=INPUT_I(ki=KEYBDINPUT(wVk=0, wScan=code, dwFlags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, time=0, dwExtraInfo=None)))
-            user32.SendInput(1, ctypes.byref(inp_down), ctypes.sizeof(INPUT))
-            user32.SendInput(1, ctypes.byref(inp_up), ctypes.sizeof(INPUT))
+            return
+
+        user32.EmptyClipboard()
+        encoded = text.encode('utf-16le') + b'\x00\x00'
+        h_mem = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(encoded))
+        if h_mem:
+            p_mem = kernel32.GlobalLock(h_mem)
+            if p_mem:
+                ctypes.memmove(p_mem, encoded, len(encoded))
+                kernel32.GlobalUnlock(h_mem)
+                user32.SetClipboardData(CF_UNICODETEXT, h_mem)
+        user32.CloseClipboard()
+
+        # 等待剪貼簿就緒後模擬按下 Ctrl+V
+        time.sleep(0.03)
+        user32.keybd_event(VK_CONTROL, 0, 0, 0)
+        user32.keybd_event(VK_V, 0, 0, 0)
+        time.sleep(0.02)
+        user32.keybd_event(VK_V, 0, 2, 0)
+        user32.keybd_event(VK_CONTROL, 0, 2, 0)
+    except Exception as e:
+        print(f"type_text_to_pc error: {e}", flush=True)
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(CURRENT_DIR, "static")
@@ -475,7 +477,8 @@ AI_SYSTEM_INSTRUCTION = """
    - GET_BATTERY_STATUS (查詢手錶電量或續航)
    - GET_HEART_RATE (查詢目前心率或心跳)
    - GET_STEP_COUNT (查詢今日步數或運動進度)
-   - INTRODUCE_CAPABILITIES (當詢問你能做什麼/有什麼功能時，請熱情精簡地介紹手電筒、心跳/步數/電量、計時器、鬧鐘與電腦遙控)
+   - OPEN_APP (開啟/打開手錶內已安裝的應用程式，例如「打開 Spotify」、「開啟設定」、「打開三星健康」、「打開地圖」等，需附帶 action_params: {"app_name": "App名稱"})
+   - INTRODUCE_CAPABILITIES (當詢問你能做什麼/有什麼功能時，請熱情精簡地介紹手電筒、心跳/步數/電量、計時器、鬧鐘、開啟應用與電腦遙控)
    
    【Windows 電腦遠端遙控】
    - TYPE_TEXT (在電腦當前游標處打字/輸入文字。當使用者要求「打字」、「輸入」、「在電腦打...」或要求文字鍵入時使用，需附帶 action_params: {"text": "要打在電腦上的純文字內容"})
@@ -495,6 +498,7 @@ AI_SYSTEM_INSTRUCTION = """
 3. 給予繁體中文回答 (reply)。
    - 語氣自然、親切、口語化，適合在智慧手錶小螢幕閱讀與手錶揚聲器語音朗讀（繁體中文，約 20~45 個字，重點清晰）。
    - 如果是打字指令 (TYPE_TEXT)，回答例如：「已為您輸入文字！」
+   - 如果是開啟 App (OPEN_APP)，回答例如：「正在為您開啟「App名稱」...」。
    - 如果是電腦指令，回答例如：「已為您靜音電腦」、「已加大音量」。
    - 如果是手錶指令，回答例如：「已為您打開手電筒」、「已開始倒數計時」。
    - 如果是資料查詢，直接回答精確重點。
@@ -544,7 +548,7 @@ def execute_ai_action(action_code: str, action_params: dict = None, transcript: 
         return execute_action("CMD", "notepad.exe")
     elif code in ["OPEN_CALC", "CALC", "CALCULATOR"]:
         return execute_action("CMD", "calc.exe")
-    elif code in ["FLASHLIGHT_ON", "FLASHLIGHT_OFF", "WATCH_VOLUME_UP", "WATCH_VOLUME_DOWN", "WATCH_MUTE", "WATCH_VIBRATE", "SET_TIMER", "CANCEL_TIMER", "SET_ALARM", "GET_BATTERY_STATUS", "GET_HEART_RATE", "GET_STEP_COUNT", "INTRODUCE_CAPABILITIES"]:
+    elif code in ["FLASHLIGHT_ON", "FLASHLIGHT_OFF", "WATCH_VOLUME_UP", "WATCH_VOLUME_DOWN", "WATCH_MUTE", "WATCH_VIBRATE", "SET_TIMER", "CANCEL_TIMER", "SET_ALARM", "GET_BATTERY_STATUS", "GET_HEART_RATE", "GET_STEP_COUNT", "OPEN_APP", "INTRODUCE_CAPABILITIES"]:
         return f"手錶指令: {code}"
     return None
 

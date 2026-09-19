@@ -94,7 +94,32 @@ object OfflineIntentMatcher {
             )
         }
 
-        // 6. 電腦遙控意圖 (若明確指定電腦)
+        // 6. 電腦打字輸入 (若以「打字」、「輸入」、「在電腦打」開頭)
+        val dictationPrefixes = listOf("在電腦打：", "在電腦打:", "在電腦打 ", "在電腦打", "打字：", "打字:", "打字 ", "打字", "輸入：", "輸入:", "輸入 ", "輸入")
+        for (prefix in dictationPrefixes) {
+            if (trimmed.startsWith(prefix) && trimmed.length > prefix.length) {
+                val content = trimmed.substring(prefix.length).trim()
+                if (content.isNotEmpty()) {
+                    val isPcOnline = com.wristhub.launcher.network.PcWebSocketManager.isConnected.value
+                    return if (!isPcOnline) {
+                        AiConversation(
+                            userText = trimmed,
+                            aiReply = "目前手錶未連線電腦喔，無法在電腦輸入文字！",
+                            action = "NONE"
+                        )
+                    } else {
+                        AiConversation(
+                            userText = trimmed,
+                            aiReply = "已為您在電腦輸入「$content」！",
+                            action = "TYPE_TEXT",
+                            actionResult = content
+                        )
+                    }
+                }
+            }
+        }
+
+        // 7. 電腦遙控意圖 (若明確指定電腦)
         if (trimmed.contains("電腦")) {
             val isPcOnline = com.wristhub.launcher.network.PcWebSocketManager.isConnected.value
             if (!isPcOnline) {
@@ -118,7 +143,22 @@ object OfflineIntentMatcher {
             }
         }
 
-        // 7. 手錶音量與震動控制
+        // 8. 開啟 / 打開 手錶 App (支援「打開 xxx」、「開啟 xxx」、「啟動 xxx」)
+        val openAppRegex = Regex("^(?:打開|開啟|啟動|開啟手錶|打開手錶)\\s*([a-zA-Z0-9\\u4e00-\\u9fa5\\s]+)$")
+        val openAppMatch = openAppRegex.find(trimmed)
+        if (openAppMatch != null) {
+            val appName = openAppMatch.groupValues[1].trim()
+            if (appName.isNotEmpty() && !appName.contains("手電筒") && !appName.contains("電腦") && !appName.contains("記事本") && !appName.contains("計算機")) {
+                return AiConversation(
+                    userText = trimmed,
+                    aiReply = "正在為您開啟「$appName」...",
+                    action = "OPEN_APP",
+                    actionResult = appName
+                )
+            }
+        }
+
+        // 9. 手錶音量與震動控制
         if (trimmed.contains("開到最大") || trimmed.contains("音量最大") || trimmed.contains("聲音最大") ||
             trimmed.contains("最大聲") || trimmed.contains("開到最滿") || trimmed.contains("拉滿") || trimmed.contains("音量拉滿")) {
             return AiConversation(
@@ -173,15 +213,16 @@ object OfflineIntentMatcher {
             )
         }
 
-        // 7. 自我介紹與能力查詢
+        // 10. 自我介紹與能力查詢
         if (trimmed.contains("你能做什麼") || trimmed.contains("有什麼功能") ||
             trimmed.contains("你是誰") || trimmed.contains("你可以幹嘛") || trimmed.contains("你會做什麼")) {
             val reply = "我是您的 WristHub 手腕專屬助理！我能幫您：\n" +
                     "1. 硬體控制：開啟高亮手電筒、調整手錶音量與震動\n" +
-                    "2. 健康與狀態：即時查詢心跳、今日步數與手錶電量\n" +
-                    "3. 實用工具：倒數計時器、設定鬧鐘\n" +
-                    "4. 電腦遙控：靜音、調整電腦音量、簡報切歌\n" +
-                    "5. 隨身智慧：任何問題直接問我！"
+                    "2. 開啟應用：語音開啟手錶內任意 App（如 Spotify、健康、設定）\n" +
+                    "3. 健康與狀態：即時查詢心跳、今日步數與手錶電量\n" +
+                    "4. 實用工具：倒數計時器、設定鬧鐘\n" +
+                    "5. 電腦遙控與打字：無線打字輸入、靜音、調整電腦音量、簡報切歌\n" +
+                    "6. 隨身智慧：任何問題直接問我！"
             return AiConversation(
                 userText = trimmed,
                 aiReply = reply,

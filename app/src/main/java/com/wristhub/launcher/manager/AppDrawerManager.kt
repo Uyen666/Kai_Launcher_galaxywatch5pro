@@ -239,4 +239,78 @@ object AppDrawerManager {
         }
         _recentApps.value = _recentApps.value.filter { it.packageName != packageName }
     }
+
+    /**
+     * 依名稱或關鍵字模糊匹配並啟動手錶 App (供 Gemini 助理調用)
+     * 支援完整名稱、包含搜尋與中英常見別名 (如 Spotify、健康、設定、地圖等)
+     */
+    fun launchAppByName(context: Context, query: String): String? {
+        val clean = query.trim().lowercase()
+        if (clean.isBlank()) return null
+
+        val apps = if (_installedApps.value.isNotEmpty()) {
+            _installedApps.value
+        } else {
+            val pm = context.packageManager
+            val intent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
+            pm.queryIntentActivities(intent, 0).map {
+                AppItem(
+                    packageName = it.activityInfo.packageName,
+                    activityName = it.activityInfo.name,
+                    label = it.loadLabel(pm).toString()
+                )
+            }.filter { it.packageName != context.packageName }
+        }
+
+        // 1. 完全一致匹配
+        var target = apps.find { it.label.trim().lowercase() == clean }
+
+        // 2. 包含匹配 (例如「健康」匹配「Samsung Health」或「三星健康」)
+        if (target == null) {
+            target = apps.find { 
+                val labelLower = it.label.lowercase()
+                labelLower.contains(clean) || clean.contains(labelLower) 
+            }
+        }
+
+        // 3. 常用別名與包名對照
+        if (target == null) {
+            val aliasMap = mapOf(
+                "設定" to listOf("settings", "設定"),
+                "音樂" to listOf("spotify", "music", "yt music", "youtube music"),
+                "spotify" to listOf("spotify"),
+                "健康" to listOf("health", "samsung health", "運動", "健身"),
+                "地圖" to listOf("maps", "google 地圖", "導航"),
+                "天氣" to listOf("weather", "天氣"),
+                "時鐘" to listOf("clock", "alarm", "時鐘", "鬧鐘"),
+                "鬧鐘" to listOf("clock", "alarm", "時鐘", "鬧鐘"),
+                "計算機" to listOf("calculator", "計算機", "計算"),
+                "錄音機" to listOf("voice recorder", "錄音", "錄音機"),
+                "play 商店" to listOf("vending", "play", "商店", "google play"),
+                "商店" to listOf("vending", "play", "商店", "google play"),
+                "訊息" to listOf("messaging", "message", "簡訊", "訊息"),
+                "電話" to listOf("dialer", "phone", "電話", "通話"),
+                "聯絡人" to listOf("contacts", "電話簿", "聯絡人"),
+                "指南針" to listOf("compass", "指南針", "羅盤"),
+                "相簿" to listOf("gallery", "相簿", "照片")
+            )
+
+            for ((aliasKey, aliases) in aliasMap) {
+                if (clean.contains(aliasKey) || aliases.any { clean.contains(it) }) {
+                    target = apps.find { app ->
+                        val appLower = app.label.lowercase()
+                        val pkgLower = app.packageName.lowercase()
+                        aliases.any { appLower.contains(it) || pkgLower.contains(it) }
+                    }
+                    if (target != null) break
+                }
+            }
+        }
+
+        if (target != null) {
+            launchApp(context, target)
+            return target.label
+        }
+        return null
+    }
 }
