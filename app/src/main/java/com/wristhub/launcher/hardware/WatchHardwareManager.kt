@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.lang.ref.WeakReference
+import kotlin.math.roundToInt
 
 /**
  * 手錶本機硬體與感測器統一控制器
@@ -109,6 +110,57 @@ object WatchHardwareManager {
             audioManager.adjustStreamVolume(AudioManager.STREAM_ALARM, direction, 0)
         } catch (e: Exception) {
             Log.e(TAG, "Adjust volume error: ${e.message}")
+        }
+    }
+
+    fun setVolumePercent(percent: Int) {
+        val ctx = appContext ?: return
+        val audioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        val clampedPercent = percent.coerceIn(0, 100)
+        try {
+            if (clampedPercent == 0) {
+                setMute(true)
+                return
+            }
+
+            // 若之前處於靜音模式，先解除靜音與免打擾限制
+            setMute(false)
+
+            val maxMusic = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            val targetMusic = (maxMusic * (clampedPercent / 100f)).roundToInt().coerceIn(1, maxMusic)
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetMusic, AudioManager.FLAG_SHOW_UI)
+
+            val maxNotif = audioManager.getStreamMaxVolume(AudioManager.STREAM_NOTIFICATION)
+            val targetNotif = (maxNotif * (clampedPercent / 100f)).roundToInt().coerceIn(0, maxNotif)
+            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, targetNotif, 0)
+
+            val maxAlarm = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            val targetAlarm = (maxAlarm * (clampedPercent / 100f)).roundToInt().coerceIn(1, maxAlarm)
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, targetAlarm, 0)
+
+            Log.d(TAG, "Set volume to $clampedPercent% -> Music: $targetMusic/$maxMusic, Notif: $targetNotif/$maxNotif, Alarm: $targetAlarm/$maxAlarm")
+        } catch (e: Exception) {
+            Log.e(TAG, "Set volume percent error: ${e.message}", e)
+        }
+    }
+
+    fun setVolumeMax() {
+        val ctx = appContext ?: return
+        val audioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        try {
+            setMute(false)
+
+            val maxMusic = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            val maxNotif = audioManager.getStreamMaxVolume(AudioManager.STREAM_NOTIFICATION)
+            val maxAlarm = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusic, AudioManager.FLAG_SHOW_UI)
+            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, maxNotif, 0)
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarm, 0)
+
+            Log.d(TAG, "Set volume to MAX (100%) -> Music: $maxMusic, Notif: $maxNotif, Alarm: $maxAlarm")
+        } catch (e: Exception) {
+            Log.e(TAG, "Set volume max error: ${e.message}", e)
         }
     }
 
@@ -261,6 +313,11 @@ object WatchHardwareManager {
                 "FLASHLIGHT_OFF" -> setFlashlight(false)
                 "WATCH_VOLUME_UP" -> adjustVolume(AudioManager.ADJUST_RAISE)
                 "WATCH_VOLUME_DOWN" -> adjustVolume(AudioManager.ADJUST_LOWER)
+                "WATCH_VOLUME_MAX" -> setVolumeMax()
+                "WATCH_VOLUME_SET" -> {
+                    val percent = (params?.get("percent") as? Number)?.toInt() ?: 100
+                    setVolumePercent(percent)
+                }
                 "WATCH_MUTE" -> setMute(true)
                 "WATCH_VIBRATE" -> setVibrateMode()
                 "SET_TIMER" -> {

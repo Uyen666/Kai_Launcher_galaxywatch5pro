@@ -119,14 +119,39 @@ object OfflineIntentMatcher {
         }
 
         // 7. 手錶音量與震動控制
-        if (trimmed.contains("手錶") && (trimmed.contains("大聲") || trimmed.contains("調大"))) {
+        if (trimmed.contains("開到最大") || trimmed.contains("音量最大") || trimmed.contains("聲音最大") ||
+            trimmed.contains("最大聲") || trimmed.contains("開到最滿") || trimmed.contains("拉滿") || trimmed.contains("音量拉滿")) {
+            return AiConversation(
+                userText = trimmed,
+                aiReply = "已為您將手錶音量開到最大！",
+                action = "WATCH_VOLUME_MAX",
+                actionResult = "100"
+            )
+        }
+
+        val volRegex = Regex("(?:手錶)?(?:音量|聲音)?(?:調到|設為|開到|調整為)?\\s*(\\d{1,3})\\s*%?")
+        if (trimmed.contains("音量") || trimmed.contains("聲音") || trimmed.contains("%")) {
+            val volMatch = volRegex.find(trimmed)
+            val num = volMatch?.groupValues?.getOrNull(1)?.toIntOrNull()
+            if (num != null && (trimmed.contains("%") || trimmed.contains("調到") || trimmed.contains("設為") || trimmed.contains("開到"))) {
+                val clamped = num.coerceIn(0, 100)
+                return AiConversation(
+                    userText = trimmed,
+                    aiReply = "已為您將手錶音量設定為 $clamped%！",
+                    action = "WATCH_VOLUME_SET",
+                    actionResult = clamped.toString()
+                )
+            }
+        }
+
+        if (trimmed.contains("大聲") || trimmed.contains("調大") || trimmed.contains("聲音大")) {
             return AiConversation(
                 userText = trimmed,
                 aiReply = "已為您調大手錶音量。",
                 action = "WATCH_VOLUME_UP"
             )
         }
-        if (trimmed.contains("手錶") && (trimmed.contains("小聲") || trimmed.contains("調小"))) {
+        if (trimmed.contains("小聲") || trimmed.contains("調小") || trimmed.contains("聲音小")) {
             return AiConversation(
                 userText = trimmed,
                 aiReply = "已為您調小手錶音量。",

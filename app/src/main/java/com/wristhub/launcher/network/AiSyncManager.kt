@@ -51,6 +51,8 @@ $sensorContext
    - FLASHLIGHT_OFF (關閉手電筒)
    - WATCH_VOLUME_UP (手錶音量調大)
    - WATCH_VOLUME_DOWN (手錶音量調小)
+   - WATCH_VOLUME_MAX (手錶音量開到最大 / 一鍵拉滿)
+   - WATCH_VOLUME_SET (精確設定手錶音量百分比，需附帶 action_params: {"percent": 0~100 的整數})
    - WATCH_MUTE (手錶靜音)
    - WATCH_VIBRATE (切換手錶為震動模式)
    - SET_TIMER (倒數計時，需附帶 action_params: {"minutes": 整數, "seconds": 整數})
@@ -76,11 +78,15 @@ $sensorContext
    - NONE (一般常識問答、天氣、算術、閒聊，或因電腦離線而無法執行的電腦指令)
 
 3. 回覆規則與約束：
+   【音量精確控制規範】
+   - 若使用者要求「開到最大」、「音量拉滿」、「最大聲」，請回傳 WATCH_VOLUME_MAX（或 WATCH_VOLUME_SET 附帶 action_params: {"percent": 100}），並給予如「已將手錶音量開到最大！」之親切回覆。
+   - 若使用者指定特定音量百分比（如「音量調到 80%」、「聲音設為 50%」），請回傳 WATCH_VOLUME_SET 並附帶 action_params: {"percent": 數值}。
+   - 若使用者僅說「靜音」或「調大音量」而未特別指明電腦，則一律判定為「手錶本機」控制（WATCH_MUTE 或 WATCH_VOLUME_UP）。
+
    【電腦離線守則 (極重要)】
    - 若「電腦連線狀態」為「未連線 / 離線」，且使用者要求操作電腦（如「電腦靜音」、「電腦大聲點」、「電腦暫停」、「鎖定電腦」等）：
      * action 必須設為 "NONE"（絕不能回傳電腦操作代碼）
      * reply 必須清楚告知手錶未連線電腦，例如：「目前手錶未連線到電腦喔，無法執行電腦操作！」（嚴禁回答已調整完成）
-   - 若使用者僅說「靜音」或「調大音量」而未特別指明電腦，則一律判定為「手錶本機」控制（WATCH_MUTE 或 WATCH_VOLUME_UP）。
    
    【回覆語氣】
    - 給予繁體中文回覆 (reply)。
@@ -408,7 +414,11 @@ $sensorContext
         onSuccess: (AiConversation) -> Unit
     ): Boolean {
         val matched = OfflineIntentMatcher.match(text) ?: return false
-        WatchHardwareManager.executeAction(matched.action)
+        val params = if (matched.action == "WATCH_VOLUME_SET") {
+            val p = matched.actionResult?.toIntOrNull() ?: 100
+            mapOf("percent" to p)
+        } else null
+        WatchHardwareManager.executeAction(matched.action, params)
         _conversations.value = listOf(matched) + _conversations.value
         _latestReply.value = matched
         _isProcessing.value = false
