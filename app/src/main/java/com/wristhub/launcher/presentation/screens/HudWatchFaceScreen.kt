@@ -14,7 +14,9 @@ import android.os.Build
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
@@ -34,6 +36,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.Text
 import coil.ImageLoader
 import coil.compose.AsyncImage
@@ -56,6 +59,7 @@ import kotlin.math.sin
 fun HudWatchFaceScreen(
     isAmbient: Boolean,
     ambientUpdateTrigger: Long = 0L,
+    onOpenAppDrawer: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -256,6 +260,17 @@ fun HudWatchFaceScreen(
                                 com.wristhub.launcher.audio.WakeAssistantManager.startManualListening()
                             }
                         )
+                    }
+                } else Modifier
+            )
+            .then(
+                if (!isAmbient && onOpenAppDrawer != null) {
+                    Modifier.pointerInput(Unit) {
+                        detectVerticalDragGestures { _, dragAmount ->
+                            if (dragAmount < -15f) {
+                                onOpenAppDrawer()
+                            }
+                        }
                     }
                 } else Modifier
             ),
@@ -626,6 +641,38 @@ fun HudWatchFaceScreen(
                         text = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.page_nav_hint),
                         color = Color.DarkGray,
                         fontSize = 10.sp
+                    )
+                }
+            }
+        }
+
+        // 底部上滑開啟 App Drawer 視覺提示手柄
+        if (!isAmbient && onOpenAppDrawer != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 6.dp)
+                    .clip(CircleShape)
+                    .clickable { onOpenAppDrawer() }
+                    .padding(horizontal = 14.dp, vertical = 2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.size(14.dp, 8.dp)) {
+                    val w = size.width
+                    val h = size.height
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(w * 0.15f, h * 0.75f)
+                        lineTo(w * 0.5f, h * 0.25f)
+                        lineTo(w * 0.85f, h * 0.75f)
+                    }
+                    drawPath(
+                        path = path,
+                        color = Color(0x9900E5FF),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = 2.dp.toPx(),
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                            join = androidx.compose.ui.graphics.StrokeJoin.Round
+                        )
                     )
                 }
             }

@@ -42,12 +42,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var lastBackPressTime = 0L
+
     private fun checkAndTriggerWakeReset() {
         if (lastInactiveTimestamp > 0L) {
             val elapsed = System.currentTimeMillis() - lastInactiveTimestamp
             val isAiBusy = com.wristhub.launcher.network.AiSyncManager.isAiTaskActive()
             if (elapsed >= AMBIENT_RESET_TIMEOUT_MS && !isAiBusy) {
                 resetToWatchFaceTrigger = System.currentTimeMillis()
+                com.wristhub.launcher.manager.AppDrawerManager.setDrawerOpen(false)
+                com.wristhub.launcher.manager.TaskManager.setOverlayOpen(false)
             }
         }
         lastInactiveTimestamp = 0L
@@ -72,6 +76,9 @@ class MainActivity : ComponentActivity() {
         // Initialize Watch Hardware Controller & Timer Manager
         com.wristhub.launcher.hardware.WatchHardwareManager.init(this)
         com.wristhub.launcher.hardware.WatchTimerManager.setContext(this)
+
+        // Initialize App Drawer Manager (scan apps & register package receiver)
+        com.wristhub.launcher.manager.AppDrawerManager.init(this)
 
         // Ensure RECORD_AUDIO permission is granted
         if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -116,5 +123,18 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+            val now = System.currentTimeMillis()
+            if (now - lastBackPressTime < 450L) {
+                lastBackPressTime = 0L
+                com.wristhub.launcher.manager.TaskManager.toggleOverlay()
+                return true
+            }
+            lastBackPressTime = now
+        }
+        return super.onKeyDown(keyCode, event)
     }
 }

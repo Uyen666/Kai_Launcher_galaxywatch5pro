@@ -24,7 +24,14 @@ import com.wristhub.launcher.presentation.screens.PcRemoteScreen
 import com.wristhub.launcher.presentation.theme.WristHubTheme
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import com.wristhub.launcher.manager.AppDrawerManager
+import com.wristhub.launcher.manager.TaskManager
+import com.wristhub.launcher.presentation.components.AppDrawerOverlay
+import com.wristhub.launcher.presentation.components.TaskManagerOverlay
 import kotlinx.coroutines.launch
 
 import androidx.compose.animation.core.Spring
@@ -51,6 +58,9 @@ fun WristHubApp(
         val pagerState = rememberPagerState(initialPage = 1, pageCount = { 2 })
         val coroutineScope = rememberCoroutineScope()
 
+        val isDrawerOpen by AppDrawerManager.isDrawerOpen.collectAsState()
+        val isTaskManagerOpen by TaskManager.isOverlayOpen.collectAsState()
+
         // Instant snap to center WatchFace on wake reset
         LaunchedEffect(resetToWatchFaceTrigger) {
             if (resetToWatchFaceTrigger > 0L && pagerState.currentPage != 1) {
@@ -72,12 +82,19 @@ fun WristHubApp(
                 )
             }
         } else {
-            // Safe Launcher BackHandler: If on Remote, return to center WatchFace.
-            // If already on center WatchFace, consume back key so the app NEVER exits!
+            // Hierarchical Launcher BackHandler:
+            // 1. If TaskManager is open, close TaskManager.
+            // 2. If AppDrawer is open, close AppDrawer.
+            // 3. If on PC Remote (page 0), return to center WatchFace.
+            // 4. If already on center WatchFace, consume back key so the app NEVER exits!
             BackHandler(enabled = true) {
-                if (pagerState.currentPage != 1) {
-                    coroutineScope.launch {
-                        pagerState.animateScrollToPage(1)
+                when {
+                    isTaskManagerOpen -> TaskManager.setOverlayOpen(false)
+                    isDrawerOpen -> AppDrawerManager.setDrawerOpen(false)
+                    pagerState.currentPage != 1 -> {
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(1)
+                        }
                     }
                 }
             }
@@ -135,7 +152,10 @@ fun WristHubApp(
                     ) {
                         when (page) {
                             0 -> PcRemoteScreen(isFocused = pagerState.currentPage == 0)
-                            1 -> HudWatchFaceScreen(isAmbient = false)
+                            1 -> HudWatchFaceScreen(
+                                isAmbient = false,
+                                onOpenAppDrawer = { AppDrawerManager.setDrawerOpen(true) }
+                            )
                         }
                     }
                 }
@@ -151,6 +171,18 @@ fun WristHubApp(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = 24.dp)
+                )
+
+                // App Drawer Overlay (Swipe up from WatchFace)
+                AppDrawerOverlay(
+                    isOpen = isDrawerOpen,
+                    onDismiss = { AppDrawerManager.setDrawerOpen(false) }
+                )
+
+                // Task Manager Overlay (Double-press Back button)
+                TaskManagerOverlay(
+                    isOpen = isTaskManagerOpen,
+                    onDismiss = { TaskManager.setOverlayOpen(false) }
                 )
 
                 // Siri / Apple Intelligence Bezel Aura Overlay
