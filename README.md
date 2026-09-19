@@ -97,7 +97,25 @@
 * **60FPS 流暢切換：**
   * 移除每幀強制觸發 GPU 離屏合成的 `saveLayer` 記憶體停頓，採用圓形黑膠唱片裁切與 3D 景深縮放，滑動幀率穩定貼滿 60FPS。
 * **Windows 桌面一鍵雙開捷徑：**
-  * 具備 `launch_web.py` 與桌面捷徑 `WristHub 控制台.lnk`，雙擊自動在背景喚醒 Python 守護程式並秒開瀏覽器後台。
+### 5. 📱 原生級 Launcher 基礎建設：App Drawer、多工清理與雙重首頁保護
+* **應用程式抽屜 (App Drawer Overlay)：**
+  * **手勢喚醒**：在 HUD 錶盤向上滑動（或點擊底部青色微光小箭頭）平滑展開抽屜。
+  * **Wear OS 圓形曲面視覺**：採用 Wear OS `ScalingLazyColumn`，滑動時具備微縮魚眼曲率縮放，極致貼合手錶圓形螢幕。
+  * **自身隔離保證**：動態獲取手錶安裝的所有應用，**嚴格過濾排除 `com.wristhub.launcher`**，絕不出現在抽屜內。
+  * **智慧排序與 IO 預快取**：
+    * 頂部置頂「🌟 常用推薦」前 3 項最常開啟或最近開啟的 App。
+    * 下方依名稱 A~Z 字母順序排序。
+    * 圖標於背景 IO 執行緒預先轉換為 Bitmap 快取，滑動保持絲滑 60FPS。
+  * **動態安裝感應**：註冊系統 `BroadcastReceiver`，新安裝或移除 App 即時自動刷新清單。
+* **多工管理與背景清理 (Task Manager Overlay)：**
+  * **實體鍵快捷召喚**：**快速連按兩下手錶下鍵（實體 Back 鍵，< 450ms）** 立即彈出多工管理介面。
+  * **最近任務卡片**：顯示最近開啟應用，支援個別滑動或點擊 ✕ 清理。
+  * **一鍵釋放記憶體**：頂部「🧹 一鍵清理所有背景」，透過 `ActivityManager.killBackgroundProcesses` 深度清理非白名單進程，精確計算釋放 MB 數並震動反饋。
+  * **絕對白名單防護**：**絕對不殺死 WristHub 自身** 與系統核心守護進程。
+* **雙重首頁保護與防退 (Dual Home Protection)：**
+  * **第三方 App 返回防護**：開啟 App 皆帶有 `FLAG_ACTIVITY_NEW_TASK or FLAG_ACTIVITY_RESET_TASK_IF_NEEDED`，按下返回鍵或關閉 App 後無縫回到 WristHub Launcher。
+  * **永不退出**：在 Compose 與 Activity 層級全面攔截返回鍵，在錶盤按下返回鍵絕不退出。
+  * **超時微光自動回歸**：進入 Ambient 微光睡眠超過 30 秒，抬腕喚醒時自動重置回歸 HUD 錶盤第一頁，並自動關閉所有開啟的抽屜與覆蓋層。
 
 ---
 
@@ -122,14 +140,21 @@ wrist-hub/
 │   │   │   │   ├── WavUtils.kt             # 16-bit PCM 轉標準 WAV 工具
 │   │   │   │   ├── AudioRecorderManager.kt # 麥克風錄音管理
 │   │   │   │   └── WatchTtsManager.kt      # 全局單例 TextToSpeech 揚聲器預熱
+│   │   │   ├── data/                      # 資料模型
+│   │   │   │   └── AppItem.kt              # 安裝應用與多工項目資料類別
 │   │   │   ├── hardware/                  # 手錶本機硬體與系統調用
 │   │   │   │   ├── WatchHardwareManager.kt # 手電筒、音量/震動、電池、心率、步數
 │   │   │   │   ├── WatchTimerManager.kt    # 本機倒數計時器與脈衝震動警報
 │   │   │   │   └── OfflineIntentMatcher.kt # 斷網離線正則關鍵字比對引擎
+│   │   │   ├── manager/                   # Launcher 核心管理器
+│   │   │   │   ├── AppDrawerManager.kt     # 應用清單掃描、動態廣播、常用推薦快取
+│   │   │   │   └── TaskManager.kt          # 多工追蹤、背景清理、白名單防護
 │   │   │   ├── presentation/
-│   │   │   │   ├── MainActivity.kt        # 生命週期、AOD 寬限期、權限申請
-│   │   │   │   ├── WristHubApp.kt         # 60FPS 雙頁 Pager 與頂層光環覆蓋
+│   │   │   │   ├── MainActivity.kt        # 生命週期、AOD 寬限期、連按雙擊下鍵攔截
+│   │   │   │   ├── WristHubApp.kt         # 60FPS 雙頁 Pager、Drawer 與 TaskManager 路由
 │   │   │   │   ├── components/            # UI 視覺特效元件
+│   │   │   │   │   ├── AppDrawerOverlay.kt  # Wear OS 圓形魚眼曲面抽屜與推薦欄
+│   │   │   │   │   ├── TaskManagerOverlay.kt# 多工管理卡片與一鍵清理按鈕
 │   │   │   │   │   ├── GeminiAuraOverlay.kt # Apple Intelligence 風格圓邊光環
 │   │   │   │   │   ├── FloatingReplyCard.kt # 毛玻璃懸浮對話卡片與膠囊
 │   │   │   │   │   ├── FlashlightOverlay.kt # 全螢幕純白 1.0f 極致手電筒
@@ -140,7 +165,7 @@ wrist-hub/
 │   │   │       ├── PcWebSocketManager.kt  # OkHttp WebSocket 客戶端與金鑰同步
 │   │   │       └── AiSyncManager.kt       # 雙模路由（PC轉發 / HTTPS直連Gemini）
 │   │   ├── res/                           # 圖示、字串與資源
-│   │   └── AndroidManifest.xml            # 錄音、震動、網路、HOME 啟動器宣告
+│   │   └── AndroidManifest.xml            # 錄音、震動、網路、QUERY_ALL_PACKAGES、HOME 啟動器宣告
 │   └── build.gradle.kts
 ├── pc-daemon/                      # 電腦端 Python 守護程式
 │   ├── wrist_server.py             # FastAPI / WebSocket / Gemini API 伺服器
