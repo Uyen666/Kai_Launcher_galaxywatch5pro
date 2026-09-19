@@ -153,10 +153,7 @@ object AppDrawerManager {
             // 1. 觸發微震動回饋
             WatchHardwareManager.vibratePattern(longArrayOf(0, 30))
 
-            // 2. 記錄到多工管理器
-            TaskManager.recordTask(appItem)
-
-            // 3. 更新最近常用持久化記錄
+            // 2. 更新最近常用持久化記錄
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val currentRecents = prefs.getString(KEY_RECENT_PACKAGES, "")?.split(",")?.filter { it.isNotBlank() }?.toMutableList() ?: mutableListOf()
             currentRecents.remove(appItem.packageName)

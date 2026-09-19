@@ -42,8 +42,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private var lastBackPressTime = 0L
-
     private fun checkAndTriggerWakeReset() {
         if (lastInactiveTimestamp > 0L) {
             val elapsed = System.currentTimeMillis() - lastInactiveTimestamp
@@ -51,7 +49,6 @@ class MainActivity : ComponentActivity() {
             if (elapsed >= AMBIENT_RESET_TIMEOUT_MS && !isAiBusy) {
                 resetToWatchFaceTrigger = System.currentTimeMillis()
                 com.wristhub.launcher.manager.AppDrawerManager.setDrawerOpen(false)
-                com.wristhub.launcher.manager.TaskManager.setOverlayOpen(false)
             }
         }
         lastInactiveTimestamp = 0L
@@ -125,35 +122,5 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-    }
-
-    private var consumeNextBackUp = false
-
-    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
-        if (event.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
-            val now = System.currentTimeMillis()
-            if (event.action == android.view.KeyEvent.ACTION_DOWN) {
-                // If TaskManager is open, single press closes it
-                if (com.wristhub.launcher.manager.TaskManager.isOverlayOpen.value) {
-                    com.wristhub.launcher.manager.TaskManager.setOverlayOpen(false)
-                    consumeNextBackUp = true
-                    return true
-                }
-                // Double press (< 450ms) toggles TaskManager
-                if (now - lastBackPressTime < 450L) {
-                    lastBackPressTime = 0L
-                    com.wristhub.launcher.manager.TaskManager.toggleOverlay()
-                    consumeNextBackUp = true
-                    return true
-                }
-                lastBackPressTime = now
-            } else if (event.action == android.view.KeyEvent.ACTION_UP) {
-                if (consumeNextBackUp) {
-                    consumeNextBackUp = false
-                    return true
-                }
-            }
-        }
-        return super.dispatchKeyEvent(event)
     }
 }
