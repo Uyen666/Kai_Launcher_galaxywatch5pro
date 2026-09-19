@@ -105,18 +105,24 @@ fun WristHubApp(
             com.wristhub.launcher.manager.LauncherStateManager.setDrawerClosed(true)
         }
 
-        if (isAmbient) {
-            // 微光模式：純黑畫布（AMOLED 像素全滅達到零發光耗電與防烙印，同時維持前台狀態不中斷與電腦的連線）
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-            )
-        } else {
-            // Hierarchical Launcher BackHandler:
-            // 1. If AppDrawer is open or partially open, smoothly close AppDrawer.
-            // 2. If on PC Remote (page 0), return to center WatchFace (page 1).
-            // 3. If already on center WatchFace, consume back key so the app NEVER exits!
+        // ──────────────────────────────────────────────────────────────
+        // 微光/活躍切換架構修正：
+        // 不再用 if(isAmbient){黑盒} else {整棵 HUD} 的二擇一結構。
+        // 舊架構每次抬腕都會「銷毀再重建」整棵 Pager+Overlay Composition 節點，
+        // 正是造成 Choreographer skipped 55 frames / Davey 1074ms 的元兇。
+        // 新架構：HUD 永遠存活在 Composition 裡，微光時用 graphicsLayer(alpha=0)
+        // 在 GPU RenderNode 層把畫面完全壓黑（不發光），活躍時瞬間恢復，零重組開銷。
+        // ──────────────────────────────────────────────────────────────
+
+        // 微光模式純黑 AMOLED 覆蓋層（放最底下，HUD 疊在上面）
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        )
+
+        // Hierarchical Launcher BackHandler（只有活躍時才有效）
+        if (!isAmbient) {
             BackHandler(enabled = true) {
                 when {
                     drawerOffsetY.value < screenHeightPx - 0.5f -> {
@@ -135,125 +141,133 @@ fun WristHubApp(
                     }
                 }
             }
+        }
 
-            val pageIndicatorState = remember(pagerState) {
-                object : PageIndicatorState {
-                    override val pageOffset: Float
-                        get() = pagerState.currentPageOffsetFraction
-                    override val selectedPage: Int
-                        get() = pagerState.currentPage
-                    override val pageCount: Int
-                        get() = 2
-                }
+        val pageIndicatorState = remember(pagerState) {
+            object : PageIndicatorState {
+                override val pageOffset: Float
+                    get() = pagerState.currentPageOffsetFraction
+                override val selectedPage: Int
+                    get() = pagerState.currentPage
+                override val pageCount: Int
+                    get() = 2
             }
+        }
 
-            val flingBehavior = PagerDefaults.flingBehavior(
-                state = pagerState,
-                snapAnimationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                )
+        val flingBehavior = PagerDefaults.flingBehavior(
+            state = pagerState,
+            snapAnimationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow
             )
+        )
 
-            Box(
+        // 整棵 HUD 永遠存在 Composition 中，切換微光時用 GPU RenderNode alpha 黑屏
+        // alpha=0 → AMOLED 完全不點亮像素；alpha=1 → 瞬間完全可見，零 Recomposition
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(Color.Black)
+                .graphicsLayer {
+                    alpha = if (isAmbient) 0f else 1f
+                }
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                userScrollEnabled = !isAmbient && drawerOffsetY.value >= screenHeightPx - 0.5f,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(CircleShape)
-                    .background(Color.Black)
-            ) {
-                HorizontalPager(
-                    state = pagerState,
-                    userScrollEnabled = drawerOffsetY.value >= screenHeightPx - 0.5f,
+                    .graphicsLayer {
+                        // 100% GPU RenderNode 零重組縮放與微暗
+                        val progress = (1f - (drawerOffsetY.value / screenHeightPx)).coerceIn(0f, 1f)
+                        val scale = 1.0f - (0.10f * progress)
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = 1.0f - (0.55f * progress)
+                    },
+                beyondViewportPageCount = 1,
+                flingBehavior = flingBehavior,
+                pageSpacing = 16.dp
+            ) { page ->
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            // 100% GPU RenderNode 零重組縮放與微暗
-                            val progress = (1f - (drawerOffsetY.value / screenHeightPx)).coerceIn(0f, 1f)
-                            val scale = 1.0f - (0.10f * progress)
+                            val pageOffset = Math.abs(
+                                (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                            )
+                            val clampedOffset = pageOffset.coerceIn(0f, 1f)
+
+                            // Smooth circular scale transition (1.0 -> 0.85) without expensive alpha saveLayer
+                            val scale = 1f - 0.15f * clampedOffset
                             scaleX = scale
                             scaleY = scale
-                            alpha = 1.0f - (0.55f * progress)
-                        },
-                    beyondViewportPageCount = 1,
-                    flingBehavior = flingBehavior,
-                    pageSpacing = 16.dp
-                ) { page ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                val pageOffset = Math.abs(
-                                    (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                                )
-                                val clampedOffset = pageOffset.coerceIn(0f, 1f)
 
-                                // Smooth circular scale transition (1.0 -> 0.85) without expensive alpha saveLayer
-                                val scale = 1f - 0.15f * clampedOffset
-                                scaleX = scale
-                                scaleY = scale
-
-                                // Enforce strict circular disc outline so sliding preserves round watch face aesthetics
-                                clip = true
-                                shape = CircleShape
-                            }
-                    ) {
-                        when (page) {
-                            0 -> PcRemoteScreen(isFocused = pagerState.currentPage == 0)
-                            1 -> HudWatchFaceScreen(
-                                isAmbient = false,
-                                onOpenAppDrawer = {
-                                    coroutineScope.launch {
-                                        drawerOffsetY.animateTo(
-                                            targetValue = 0f,
-                                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
-                                        )
-                                        AppDrawerManager.setDrawerOpen(true)
-                                    }
-                                },
-                                onVerticalDrag = { deltaY ->
-                                    coroutineScope.launch {
-                                        val newOffset = (drawerOffsetY.value + deltaY).coerceIn(0f, screenHeightPx)
-                                        drawerOffsetY.snapTo(newOffset)
-                                    }
-                                },
-                                onDragEnd = { velocityY ->
-                                    coroutineScope.launch {
-                                        val shouldOpen = if (Math.abs(velocityY) > 350f) {
-                                            velocityY < 0f
-                                        } else {
-                                            drawerOffsetY.value < screenHeightPx * 0.6f
-                                        }
-                                        drawerOffsetY.animateTo(
-                                            targetValue = if (shouldOpen) 0f else screenHeightPx,
-                                            animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
-                                        )
-                                        AppDrawerManager.setDrawerOpen(shouldOpen)
-                                    }
-                                }
-                            )
+                            // Enforce strict circular disc outline so sliding preserves round watch face aesthetics
+                            clip = true
+                            shape = CircleShape
                         }
+                ) {
+                    when (page) {
+                        0 -> PcRemoteScreen(isFocused = !isAmbient && pagerState.currentPage == 0)
+                        1 -> HudWatchFaceScreen(
+                            isAmbient = isAmbient,
+                            ambientUpdateTrigger = ambientUpdateTrigger,
+                            onOpenAppDrawer = if (!isAmbient) ({
+                                coroutineScope.launch {
+                                    drawerOffsetY.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                                    )
+                                    AppDrawerManager.setDrawerOpen(true)
+                                }
+                            }) else null,
+                            onVerticalDrag = if (!isAmbient) ({ deltaY ->
+                                coroutineScope.launch {
+                                    val newOffset = (drawerOffsetY.value + deltaY).coerceIn(0f, screenHeightPx)
+                                    drawerOffsetY.snapTo(newOffset)
+                                }
+                            }) else null,
+                            onDragEnd = if (!isAmbient) ({ velocityY ->
+                                coroutineScope.launch {
+                                    val shouldOpen = if (Math.abs(velocityY) > 350f) {
+                                        velocityY < 0f
+                                    } else {
+                                        drawerOffsetY.value < screenHeightPx * 0.6f
+                                    }
+                                    drawerOffsetY.animateTo(
+                                        targetValue = if (shouldOpen) 0f else screenHeightPx,
+                                        animationSpec = spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+                                    )
+                                    AppDrawerManager.setDrawerOpen(shouldOpen)
+                                }
+                            }) else null
+                        )
                     }
                 }
+            }
 
-                // Wear OS Pager Indicator (dots at bottom)
-                HorizontalPageIndicator(
-                    pageIndicatorState = pageIndicatorState,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .graphicsLayer {
-                            val progress = (1f - (drawerOffsetY.value / screenHeightPx)).coerceIn(0f, 1f)
-                            alpha = (1f - progress * 2.5f).coerceIn(0f, 1f)
-                        }
-                )
+            // Wear OS Pager Indicator (dots at bottom)
+            HorizontalPageIndicator(
+                pageIndicatorState = pageIndicatorState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .graphicsLayer {
+                        val progress = (1f - (drawerOffsetY.value / screenHeightPx)).coerceIn(0f, 1f)
+                        alpha = (1f - progress * 2.5f).coerceIn(0f, 1f)
+                    }
+            )
 
-                // Floating Timer Badge (if active)
-                TimerBadge(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 24.dp)
-                )
+            // Floating Timer Badge (if active)
+            TimerBadge(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 24.dp)
+            )
 
-                // App Drawer Overlay (1:1 垂直手指即時跟隨)
+            // App Drawer Overlay (1:1 垂直手指即時跟隨)
+            if (!isAmbient) {
                 AppDrawerOverlay(
                     drawerOffsetY = drawerOffsetY.value,
                     screenHeightPx = screenHeightPx,
@@ -287,13 +301,13 @@ fun WristHubApp(
                         }
                     }
                 )
-
-                // Siri / Apple Intelligence Bezel Aura Overlay
-                GeminiAuraOverlay()
-
-                // Floating glass response card
-                FloatingReplyCard()
             }
+
+            // Siri / Apple Intelligence Bezel Aura Overlay
+            GeminiAuraOverlay()
+
+            // Floating glass response card
+            FloatingReplyCard()
         }
 
         // Full-screen pure white Flashlight Overlay (highest z-index, covers ambient & active)

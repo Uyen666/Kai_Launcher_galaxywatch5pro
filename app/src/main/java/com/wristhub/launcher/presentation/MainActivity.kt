@@ -43,9 +43,14 @@ class MainActivity : ComponentActivity() {
     private var isActivityResumed = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    // 防止 onExitAmbient + DisplayListener 在同一次抬腕重複觸發（debounce）
+    private var lastWakeTriggerMs = 0L
+
     companion object {
         private const val AMBIENT_RESET_TIMEOUT_MS = 30_000L
+        private const val WAKE_TRIGGER_DEBOUNCE_MS = 500L  // 500ms 內只觸發一次
     }
+
 
     /**
      * 嘗試觸發抬腕 Gemini 開麥：
@@ -65,14 +70,23 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        // Debounce：onExitAmbient 和 DisplayListener STATE_ON 可能在同一次抬腕都觸發
+        val now = System.currentTimeMillis()
+        if (now - lastWakeTriggerMs < WAKE_TRIGGER_DEBOUNCE_MS) {
+            Log.d(TAG, "tryTriggerWakeOnResume: Debounced (last trigger ${now - lastWakeTriggerMs}ms ago)")
+            return
+        }
+
         val isEligible = LauncherStateManager.isHudWatchFaceEligible()
         Log.d(TAG, "tryTriggerWakeOnResume: isEligible=$isEligible (page=${LauncherStateManager.currentPage.value}, drawerClosed=${LauncherStateManager.isDrawerClosed.value})")
         if (isEligible) {
             wasDisplaySleeping = false
+            lastWakeTriggerMs = now
             Log.d(TAG, "tryTriggerWakeOnResume: Waking up on HUD WatchFace -> Triggering Gemini Assistant!")
             WakeAssistantManager.onScreenInteractive()
         }
     }
+
 
     /**
      * 監聽底層真實顯示面板狀態變化（STATE_ON, STATE_DOZE, STATE_OFF）
