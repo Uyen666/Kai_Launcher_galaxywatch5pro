@@ -39,6 +39,9 @@ object AppDrawerManager {
     private val _isDrawerOpen = MutableStateFlow(false)
     val isDrawerOpen: StateFlow<Boolean> = _isDrawerOpen.asStateFlow()
 
+    @Volatile
+    var isLaunchingApp = false
+
     fun toggleDrawer() {
         _isDrawerOpen.value = !_isDrawerOpen.value
     }
@@ -197,6 +200,7 @@ object AppDrawerManager {
 
             // 3. 以獨立任務棧（NEW_TASK）啟動第三方 App
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            isLaunchingApp = true
             context.startActivity(launchIntent)
             Log.d(TAG, "Launched app successfully: ${appItem.label} (${appItem.packageName})")
 

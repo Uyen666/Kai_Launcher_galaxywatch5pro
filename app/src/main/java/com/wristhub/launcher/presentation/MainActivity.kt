@@ -8,7 +8,7 @@ import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
+import android.os.PowerManager
 import android.util.Log
 import android.view.Display
 import androidx.activity.ComponentActivity
@@ -37,25 +37,45 @@ class MainActivity : ComponentActivity() {
     private var resetToWatchFaceTrigger by mutableLongStateOf(0L)
     private var lastInactiveTimestamp = 0L
 
-    // 螢幕是否處於休眠/微光狀態（Doze / Off）
+    // 螢幕是否曾進入休眠/微光/熄滅狀態（待喚醒標記）
     private var wasDisplaySleeping = false
-
-    // 記錄真實螢幕點亮（由休眠/Doze轉為活躍亮屏）的時間戳
-    // 只有在剛點亮後的 1200ms 黃金視窗內，且 Launcher 位於 HUD 錶盤第一頁時才允許開麥
-    // 從第三方 App 退回首頁時，螢幕始終為 STATE_ON，此時間戳為 0，100% 杜絕誤觸！
-    private var lastWakeTimestamp = 0L
 
     private var isActivityResumed = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     companion object {
         private const val AMBIENT_RESET_TIMEOUT_MS = 30_000L
-        private const val SCREEN_ON_WAKE_WINDOW_MS = 1200L
+    }
+
+    /**
+     * 嘗試觸發抬腕 Gemini 開麥：
+     * 必須滿足：1. 來自真實休眠喚醒；2. Activity 處於 Resumed；3. 非 Ambient 微光；4. 處於 HUD 錶盤第一頁且抽屜收合
+     */
+    private fun tryTriggerWakeOnResume() {
+        if (!wasDisplaySleeping) {
+            Log.d(TAG, "tryTriggerWakeOnResume: Not sleeping before -> Ignore")
+            return
+        }
+        if (!isActivityResumed) {
+            Log.d(TAG, "tryTriggerWakeOnResume: Activity not resumed -> Ignore")
+            return
+        }
+        if (isAmbient) {
+            Log.d(TAG, "tryTriggerWakeOnResume: Currently ambient -> Ignore")
+            return
+        }
+
+        val isEligible = LauncherStateManager.isHudWatchFaceEligible()
+        Log.d(TAG, "tryTriggerWakeOnResume: isEligible=$isEligible (page=${LauncherStateManager.currentPage.value}, drawerClosed=${LauncherStateManager.isDrawerClosed.value})")
+        if (isEligible) {
+            wasDisplaySleeping = false
+            Log.d(TAG, "tryTriggerWakeOnResume: Waking up on HUD WatchFace -> Triggering Gemini Assistant!")
+            WakeAssistantManager.onScreenInteractive()
+        }
     }
 
     /**
      * 監聽底層真實顯示面板狀態變化（STATE_ON, STATE_DOZE, STATE_OFF）
-     * 完美捕獲 Wear OS 系統級 AmbientDream（休眠微光屏保）的進入與退出！
      */
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {}
@@ -64,44 +84,34 @@ class MainActivity : ComponentActivity() {
             val displayManager = getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager ?: return
             val defaultDisplay = displayManager.getDisplay(Display.DEFAULT_DISPLAY) ?: return
             val state = defaultDisplay.state
-            Log.d(TAG, "DisplayListener.onDisplayChanged: state=$state (wasSleeping=$wasDisplaySleeping)")
+            Log.d(TAG, "DisplayListener: state=$state (wasSleeping=$wasDisplaySleeping)")
 
             if (state == Display.STATE_DOZE || state == Display.STATE_DOZE_SUSPEND || state == Display.STATE_OFF) {
                 wasDisplaySleeping = true
                 WakeAssistantManager.onScreenSleep()
             } else if (state == Display.STATE_ON) {
-                if (wasDisplaySleeping) {
-                    wasDisplaySleeping = false
-                    Log.d(TAG, "Display woke up from sleep/doze to STATE_ON! Starting wake window.")
-                    lastWakeTimestamp = SystemClock.elapsedRealtime()
-                    tryTriggerWakeAssistant()
-                    mainHandler.postDelayed({
-                        tryTriggerWakeAssistant()
-                    }, 150)
+                if (wasDisplaySleeping && isActivityResumed) {
+                    tryTriggerWakeOnResume()
                 }
             }
         }
     }
 
     /**
-     * 監聽真實硬體螢幕開關廣播 (ACTION_SCREEN_ON / ACTION_SCREEN_OFF)
+     * 監聽硬體螢幕開關廣播 (ACTION_SCREEN_ON / ACTION_SCREEN_OFF)
      */
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_ON -> {
-                    Log.d(TAG, "Hardware screen turned ON (ACTION_SCREEN_ON)")
-                    wasDisplaySleeping = false
-                    lastWakeTimestamp = SystemClock.elapsedRealtime()
-                    tryTriggerWakeAssistant()
-                    mainHandler.postDelayed({
-                        tryTriggerWakeAssistant()
-                    }, 150)
+                    Log.d(TAG, "System Broadcast: ACTION_SCREEN_ON")
+                    if (wasDisplaySleeping && isActivityResumed) {
+                        tryTriggerWakeOnResume()
+                    }
                 }
                 Intent.ACTION_SCREEN_OFF -> {
-                    Log.d(TAG, "Hardware screen turned OFF (ACTION_SCREEN_OFF)")
+                    Log.d(TAG, "System Broadcast: ACTION_SCREEN_OFF")
                     wasDisplaySleeping = true
-                    lastWakeTimestamp = 0L
                     lastInactiveTimestamp = System.currentTimeMillis()
                     WakeAssistantManager.onScreenSleep()
                 }
@@ -109,32 +119,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun tryTriggerWakeAssistant() {
-        if (lastWakeTimestamp == 0L) return
-        if (!isActivityResumed) return
-        if (isAmbient) return
-
-        val elapsed = SystemClock.elapsedRealtime() - lastWakeTimestamp
-        if (elapsed > SCREEN_ON_WAKE_WINDOW_MS) {
-            // 超過 1.2 秒視窗，代表非剛亮屏事件（例如早已處於亮屏狀態）
-            lastWakeTimestamp = 0L
-            return
-        }
-
-        val isEligible = LauncherStateManager.isHudWatchFaceEligible()
-        Log.d(TAG, "tryTriggerWakeAssistant: elapsed=${elapsed}ms, isEligible=$isEligible, isResumed=$isActivityResumed")
-        if (isEligible) {
-            // 成功消耗此亮屏喚醒事件，避免同一亮屏期間重複觸發
-            lastWakeTimestamp = 0L
-            WakeAssistantManager.onScreenInteractive()
-        }
-    }
-
     private val ambientCallback = object : AmbientLifecycleObserver.AmbientLifecycleCallback {
         override fun onEnterAmbient(ambientDetails: AmbientLifecycleObserver.AmbientDetails) {
             isAmbient = true
             wasDisplaySleeping = true
-            lastWakeTimestamp = 0L
             lastInactiveTimestamp = System.currentTimeMillis()
             WakeAssistantManager.onScreenSleep()
         }
@@ -142,17 +130,12 @@ class MainActivity : ComponentActivity() {
         override fun onExitAmbient() {
             isAmbient = false
             checkAndTriggerWakeReset()
-            // 退出微光 AOD 模式（抬腕亮起）
-            wasDisplaySleeping = false
-            lastWakeTimestamp = SystemClock.elapsedRealtime()
-            tryTriggerWakeAssistant()
-            mainHandler.postDelayed({
-                tryTriggerWakeAssistant()
-            }, 150)
+            if (wasDisplaySleeping) {
+                tryTriggerWakeOnResume()
+            }
         }
 
         override fun onUpdateAmbient() {
-            // Periodic update in ambient mode (called ~1/min by system RTC)
             ambientUpdateTrigger = System.currentTimeMillis()
         }
     }
@@ -232,8 +215,29 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         isActivityResumed = false
-        // 當使用者切換到其他 App，取消任何待處理的喚醒戳記
-        lastWakeTimestamp = 0L
+
+        val isAppLaunch = AppDrawerManager.isLaunchingApp
+        AppDrawerManager.isLaunchingApp = false
+
+        if (isAppLaunch) {
+            // 使用者從抽屜點擊開啟了第三方 App -> 明確標記非休眠
+            wasDisplaySleeping = false
+            Log.d(TAG, "onPause: Launching app from drawer -> wasDisplaySleeping = false")
+        } else {
+            // 預設為手放下/螢幕超時休眠
+            wasDisplaySleeping = true
+            Log.d(TAG, "onPause: Screen sleep / wrist lowered candidate -> wasDisplaySleeping = true")
+
+            // 防護：若 350ms 後螢幕仍然完全亮起且可互動，代表是開啟了系統快捷設定、Tiles 或多工介面
+            mainHandler.postDelayed({
+                val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                if (pm?.isInteractive == true && !isAmbient) {
+                    wasDisplaySleeping = false
+                    Log.d(TAG, "onPause delay-check: Screen still interactive -> wasDisplaySleeping = false")
+                }
+            }, 350)
+        }
+
         if (lastInactiveTimestamp == 0L) {
             lastInactiveTimestamp = System.currentTimeMillis()
         }
@@ -247,8 +251,13 @@ class MainActivity : ComponentActivity() {
             checkAndTriggerWakeReset()
         }
 
-        // 檢查是否是由剛亮屏（1200ms 內由休眠/Doze轉為亮起）觸發的 resume
-        tryTriggerWakeAssistant()
+        // 當 Activity 恢復前景時，若是從手錶休眠/微光狀態喚醒，直接觸發開麥
+        if (wasDisplaySleeping) {
+            Log.d(TAG, "onResume: Resumed from wrist sleep!")
+            tryTriggerWakeOnResume()
+        } else {
+            Log.d(TAG, "onResume: Returned from another app or settings -> No wake")
+        }
     }
 
     override fun onDestroy() {
