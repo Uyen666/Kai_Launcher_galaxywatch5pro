@@ -3,6 +3,7 @@ package com.wristhub.launcher.presentation.components
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,14 +22,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +57,9 @@ import com.wristhub.launcher.data.AppItem
 import com.wristhub.launcher.manager.AppDrawerManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.atan2
 
 /**
  * 1:1 垂直手勢追隨、零重組 GPU 渲染與賽博微光美學 App Drawer
@@ -91,14 +102,25 @@ fun AppDrawerOverlay(
         }
     }
 
-    // 當前首字母指示器開關
+    // 當前首字母指示器開關與虛擬錶圈觸控狀態
     var showAlphabetIndicator by remember { mutableStateOf(false) }
+    var isBezelTouching by remember { mutableStateOf(false) }
+    var touchBezelAngle by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(isBezelTouching) {
+        if (isBezelTouching) {
+            showAlphabetIndicator = true
+        }
+    }
+
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress) {
             showAlphabetIndicator = true
         } else {
             delay(650L)
-            showAlphabetIndicator = false
+            if (!isBezelTouching) {
+                showAlphabetIndicator = false
+            }
         }
     }
 
@@ -203,6 +225,90 @@ fun AppDrawerOverlay(
                 showAlphabetIndicator = true
                 true
             }
+            // 虛擬圓周錶圈手勢追蹤 (手指沿螢幕周圍圓弧滑動，上下滾動清單)
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val radius = size.width / 2f
+                    val dx = (down.position.x - center.x).toDouble()
+                    val dy = (down.position.y - center.y).toDouble()
+                    val dist = kotlin.math.hypot(dx, dy).toFloat()
+
+                    // 落在外緣虛擬錶圈感應環 (半徑 55% ~ 120% 區間)
+                    if (dist >= radius * 0.55f && dist <= radius * 1.20f) {
+                        var prevAngle = atan2(dy, dx).toFloat()
+
+                        var isRotating = false
+                        var accumulatedAngle = 0f
+                        var accumulatedHapticAngle = 0f
+                        var lastMoveTime = System.currentTimeMillis()
+
+                        while (true) {
+                            val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                            val pointer = event.changes.firstOrNull { it.id == down.id }
+
+                            if (pointer == null || !pointer.pressed) {
+                                isBezelTouching = false
+                                break
+                            }
+
+                            val currentAngle = atan2(
+                                (pointer.position.y - center.y).toDouble(),
+                                (pointer.position.x - center.x).toDouble()
+                            ).toFloat()
+
+                            var deltaAngle = currentAngle - prevAngle
+                            val pi = PI.toFloat()
+                            if (deltaAngle > pi) deltaAngle -= 2f * pi
+                            else if (deltaAngle < -pi) deltaAngle += 2f * pi
+
+                            if (!isRotating) {
+                                accumulatedAngle += deltaAngle
+                                // 旋轉超過約 2.3 度 (0.04 弧度) 即判定為圓周旋轉手勢並接管
+                                if (abs(accumulatedAngle) >= 0.04f) {
+                                    isRotating = true
+                                    isBezelTouching = true
+                                    touchBezelAngle = currentAngle
+                                    pointer.consume()
+                                }
+                            }
+
+                            if (isRotating) {
+                                pointer.consume()
+                                touchBezelAngle = currentAngle
+                                isBezelTouching = true
+
+                                val now = System.currentTimeMillis()
+                                val dt = (now - lastMoveTime).coerceAtLeast(1L)
+
+                                // 角速度非線性倍率加速 (轉速快時位移放大 1.0x ~ 3.5x)
+                                val angularSpeed = abs(deltaAngle) / (dt / 1000f)
+                                val speedMultiplier = (1.0f + (angularSpeed - 1.2f) * 0.45f).coerceIn(1.0f, 3.5f)
+
+                                // 基準滾動比率：順時針向下、逆時針向上
+                                val baseFactor = (size.height * 1.9f) / (2f * pi)
+                                val scrollPixels = deltaAngle * baseFactor * speedMultiplier
+
+                                coroutineScope.launch {
+                                    listState.scrollBy(scrollPixels)
+                                }
+
+                                // 齒輪刻度微震反饋 (約每 6.8 度觸發一次)
+                                accumulatedHapticAngle += abs(deltaAngle)
+                                if (accumulatedHapticAngle >= 0.12f) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    accumulatedHapticAngle = 0f
+                                }
+
+                                lastMoveTime = now
+                                prevAngle = currentAngle
+                                showAlphabetIndicator = true
+                            }
+                        }
+                    }
+                }
+            }
             // 支援在抽屜非滾動區域直接向下拖曳手勢
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
@@ -224,7 +330,7 @@ fun AppDrawerOverlay(
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 1. 極簡科技感 APPS 標題徽章（徹底告別白色小橫條）
+                // 1. 極簡科技感 APPS 標題徽章（支援點擊一鍵回頂）
                 item {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -232,6 +338,17 @@ fun AppDrawerOverlay(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 16.dp, bottom = 10.dp)
+                            .clip(RoundedCornerShape(percent = 50))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(0)
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = "APPS",
@@ -379,20 +496,63 @@ fun AppDrawerOverlay(
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 6.dp)
+                    .padding(end = 8.dp)
                     .graphicsLayer { alpha = indicatorAlpha }
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(Color(0xE6080E1A))
-                .border(1.2.dp, Color(0xFF00E5FF).copy(alpha = 0.85f), CircleShape),
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xF0080E1A))
+                    .border(1.2.dp, Color(0xFF00E5FF).copy(alpha = 0.85f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = currentLetter,
-                    fontSize = if (currentLetter == "⭐") 14.sp else 15.sp,
+                    fontSize = if (currentLetter == "⭐") 15.sp else 16.sp,
                     fontWeight = FontWeight.Black,
                     color = Color(0xFF00E5FF),
                     textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        // 7. 虛擬外圈輪轉軌跡發光弧線 (Bezel Glow Arc - 沿著外緣鈦金屬圈發光)
+        val bezelGlowAlpha by animateFloatAsState(
+            targetValue = if (isBezelTouching) 1f else 0f,
+            animationSpec = tween(220),
+            label = "bezelGlowAlpha"
+        )
+        if (bezelGlowAlpha > 0.01f) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = bezelGlowAlpha }
+            ) {
+                val strokeWidth = 3.2.dp.toPx()
+                val inset = 3.dp.toPx()
+                val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
+                val currentDeg = (touchBezelAngle * 180f / PI.toFloat())
+                val sweep = 55f
+                val startDeg = currentDeg - sweep / 2f
+
+                // 柔和外光暈 (Outer soft glow)
+                drawArc(
+                    color = Color(0xFF00E5FF).copy(alpha = 0.32f * bezelGlowAlpha),
+                    startAngle = startDeg,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = Offset(inset, inset),
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth * 2.2f, cap = StrokeCap.Round)
+                )
+
+                // 核心亮弧 (Core bright arc)
+                drawArc(
+                    color = Color(0xFF00E5FF),
+                    startAngle = startDeg,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = Offset(inset, inset),
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                 )
             }
         }
