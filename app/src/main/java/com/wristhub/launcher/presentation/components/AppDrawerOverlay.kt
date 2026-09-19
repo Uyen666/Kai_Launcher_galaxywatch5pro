@@ -235,9 +235,8 @@ fun AppDrawerOverlay(
                     val dy = (down.position.y - center.y).toDouble()
                     val dist = kotlin.math.hypot(dx, dy).toFloat()
 
-                    // 嚴格鎖定在外緣虛擬錶圈感應環 (半徑 70% ~ 130% 區間，即螢幕邊緣與鈦金屬外框)
-                    // 內圈 70% 區域 100% 保證正常上下垂直滑動與按鍵點擊
-                    if (dist >= radius * 0.70f && dist <= radius * 1.30f) {
+                    // 落在外緣虛擬錶圈感應環 (半徑 64% ~ 130% 區間)
+                    if (dist >= radius * 0.64f && dist <= radius * 1.30f) {
                         var prevAngle = atan2(dy, dx).toFloat()
 
                         var isRotating = false
@@ -258,12 +257,6 @@ fun AppDrawerOverlay(
                             val curDy = (pointer.position.y - center.y).toDouble()
                             val curDist = kotlin.math.hypot(curDx, curDy).toFloat()
 
-                            // 若手指滑入中央內容區 (小於 60%)，判定為正常操作，立即中斷退出錶圈手勢
-                            if (curDist < radius * 0.60f) {
-                                isBezelTouching = false
-                                break
-                            }
-
                             val currentAngle = atan2(curDy, curDx).toFloat()
 
                             var deltaAngle = currentAngle - prevAngle
@@ -272,9 +265,15 @@ fun AppDrawerOverlay(
                             else if (deltaAngle < -pi) deltaAngle += 2f * pi
 
                             if (!isRotating) {
+                                // 尚未進入旋轉前：若手指大幅滑入中央 (小於 50%)，判定為一般點擊或滑動，退出
+                                if (curDist < radius * 0.50f) {
+                                    isBezelTouching = false
+                                    break
+                                }
+
                                 accumulatedAngle += deltaAngle
-                                // 旋轉超過約 3.2 度 (0.055 弧度) 即判定為圓周旋轉意圖並接管事件
-                                if (abs(accumulatedAngle) >= 0.055f) {
+                                // 旋轉累積超過約 2.8 度 (0.05 弧度) 即判定為環形旋轉意圖並接管事件
+                                if (abs(accumulatedAngle) >= 0.05f) {
                                     isRotating = true
                                     isBezelTouching = true
                                     touchBezelAngle = currentAngle
@@ -283,6 +282,7 @@ fun AppDrawerOverlay(
                             }
 
                             if (isRotating) {
+                                // 一旦進入旋轉狀態，允許手指在整個環形區自由連續旋轉 360 度，絕不中途斷線
                                 pointer.consume()
                                 touchBezelAngle = currentAngle
                                 isBezelTouching = true
@@ -310,9 +310,11 @@ fun AppDrawerOverlay(
                                 }
 
                                 lastMoveTime = now
-                                prevAngle = currentAngle
                                 showAlphabetIndicator = true
                             }
+
+                            // 每一幀皆更新 prevAngle，確保角度微分平滑無抖動
+                            prevAngle = currentAngle
                         }
                     }
                 }
@@ -426,7 +428,7 @@ fun AppDrawerOverlay(
         // 5. 常駐頂部 APPS 膠囊徽章（永不隨清單滾走，滑到最底部隨時可點擊一鍵回頂）
         val isScrolledDown by remember(listState) {
             derivedStateOf {
-                listState.centerItemIndex > 0 || listState.centerItemScrollOffset > 30
+                listState.centerItemIndex > 0
             }
         }
 
@@ -447,6 +449,10 @@ fun AppDrawerOverlay(
                 ) {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     coroutineScope.launch {
+                        // 若清單較深，先零延遲瞬移至接近頂端，再平滑動畫滾入頂部（徹底根除跨幾十個項目 layout 掉幀卡頓）
+                        if (listState.centerItemIndex > 4) {
+                            listState.scrollToItem(3)
+                        }
                         listState.animateScrollToItem(0)
                     }
                 }
