@@ -33,6 +33,7 @@
             android:launchMode="singleInstance"
             android:alwaysRetainTaskState="true"
             android:clearTaskOnLaunch="false"
+            android:excludeFromRecents="true"
             android:theme="@android:style/Theme.DeviceDefault">
 
             <intent-filter android:priority="1000">

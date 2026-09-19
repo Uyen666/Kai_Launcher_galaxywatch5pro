@@ -44,6 +44,7 @@ import androidx.wear.compose.material.items
 import androidx.wear.compose.material.rememberScalingLazyListState
 import com.wristhub.launcher.data.AppItem
 import com.wristhub.launcher.manager.AppDrawerManager
+import com.wristhub.launcher.manager.TaskManager
 
 /**
  * Wear OS 原生弧形美學 App Drawer (應用程式抽屜)
@@ -177,6 +178,37 @@ fun AppDrawerOverlay(
                                     text = "${installedApps.size}",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF00E5FF)
+                                )
+                            }
+                        }
+                    }
+
+                    // 2.5 快速多工背景清理按鈕
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF1E2638))
+                                .clickable {
+                                    onDismiss()
+                                    TaskManager.setOverlayOpen(true)
+                                }
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = "🧹",
+                                    fontSize = 11.sp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "多工背景清理",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = Color(0xFF00E5FF)
                                 )
                             }

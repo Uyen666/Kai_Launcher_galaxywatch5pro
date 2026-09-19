@@ -116,7 +116,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         if (!isAmbient) {
             checkAndTriggerWakeReset()
-            com.wristhub.launcher.audio.WakeAssistantManager.onScreenInteractive()
+            // NOTE: Do NOT call onScreenInteractive() here.
+            // onScreenInteractive() is strictly for ambient wake-up (raise wrist),
+            // not for resuming from another app/recents.
         }
     }
 
@@ -125,16 +127,33 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
     }
 
-    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
-        if (keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+    private var consumeNextBackUp = false
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
             val now = System.currentTimeMillis()
-            if (now - lastBackPressTime < 450L) {
-                lastBackPressTime = 0L
-                com.wristhub.launcher.manager.TaskManager.toggleOverlay()
-                return true
+            if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                // If TaskManager is open, single press closes it
+                if (com.wristhub.launcher.manager.TaskManager.isOverlayOpen.value) {
+                    com.wristhub.launcher.manager.TaskManager.setOverlayOpen(false)
+                    consumeNextBackUp = true
+                    return true
+                }
+                // Double press (< 450ms) toggles TaskManager
+                if (now - lastBackPressTime < 450L) {
+                    lastBackPressTime = 0L
+                    com.wristhub.launcher.manager.TaskManager.toggleOverlay()
+                    consumeNextBackUp = true
+                    return true
+                }
+                lastBackPressTime = now
+            } else if (event.action == android.view.KeyEvent.ACTION_UP) {
+                if (consumeNextBackUp) {
+                    consumeNextBackUp = false
+                    return true
+                }
             }
-            lastBackPressTime = now
         }
-        return super.onKeyDown(keyCode, event)
+        return super.dispatchKeyEvent(event)
     }
 }
