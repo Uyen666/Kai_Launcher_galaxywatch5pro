@@ -106,18 +106,12 @@ fun WristHubApp(
         }
 
         if (isAmbient) {
-            // In ambient mode, lock strictly to the minimalist HUD watchface
+            // 微光模式：純黑畫布（AMOLED 像素全滅達到零發光耗電與防烙印，同時維持前台狀態不中斷與電腦的連線）
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(CircleShape)
                     .background(Color.Black)
-            ) {
-                HudWatchFaceScreen(
-                    isAmbient = true,
-                    ambientUpdateTrigger = ambientUpdateTrigger
-                )
-            }
+            )
         } else {
             // Hierarchical Launcher BackHandler:
             // 1. If AppDrawer is open or partially open, smoothly close AppDrawer.

@@ -30,6 +30,7 @@ object PcWebSocketManager {
     private val client = OkHttpClient.Builder()
         .readTimeout(3, TimeUnit.SECONDS)
         .connectTimeout(3, TimeUnit.SECONDS)
+        .pingInterval(10, TimeUnit.SECONDS)
         .build()
 
     private var webSocket: WebSocket? = null
