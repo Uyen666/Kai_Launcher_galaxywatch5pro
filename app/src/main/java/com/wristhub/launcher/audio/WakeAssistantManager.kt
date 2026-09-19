@@ -40,7 +40,7 @@ object WakeAssistantManager {
         speechStartThreshold = 1800f,
         speechEndThreshold = 950f,
         silenceDurationMs = 850L,
-        minVoicedFramesForStart = 3,
+        minVoicedFramesForStart = 2,  // 80ms (原 3x40ms=120ms)，縮短喚醒延遲，ZCR 仍過濾摩擦雜音
         maxZcrThreshold = 0.40f
     )
 
