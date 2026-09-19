@@ -97,7 +97,7 @@
 * **60FPS 流暢切換：**
   * 移除每幀強制觸發 GPU 離屏合成的 `saveLayer` 記憶體停頓，採用圓形黑膠唱片裁切與 3D 景深縮放，滑動幀率穩定貼滿 60FPS。
 * **Windows 桌面一鍵雙開捷徑：**
-### 5. 📱 原生級 Launcher 基礎建設：App Drawer、多工清理與雙重首頁保護
+### 5. 📱 原生級 Launcher 基礎建設：App Drawer、原生多工相容與雙重首頁保護
 * **應用程式抽屜 (App Drawer Overlay)：**
   * **手勢喚醒**：在 HUD 錶盤向上滑動（或點擊底部青色微光小箭頭）平滑展開抽屜。
   * **Wear OS 圓形曲面視覺**：採用 Wear OS `ScalingLazyColumn`，滑動時具備微縮魚眼曲率縮放，極致貼合手錶圓形螢幕。
@@ -107,15 +107,15 @@
     * 下方依名稱 A~Z 字母順序排序。
     * 圖標於背景 IO 執行緒預先轉換為 Bitmap 快取，滑動保持絲滑 60FPS。
   * **動態安裝感應**：註冊系統 `BroadcastReceiver`，新安裝或移除 App 即時自動刷新清單。
-* **多工管理與背景清理 (Task Manager Overlay)：**
-  * **實體鍵快捷召喚**：**快速連按兩下手錶下鍵（實體 Back 鍵，< 450ms）** 立即彈出多工管理介面。
-  * **最近任務卡片**：顯示最近開啟應用，支援個別滑動或點擊 ✕ 清理。
-  * **一鍵釋放記憶體**：頂部「🧹 一鍵清理所有背景」，透過 `ActivityManager.killBackgroundProcesses` 深度清理非白名單進程，精確計算釋放 MB 數並震動反饋。
-  * **絕對白名單防護**：**絕對不殺死 WristHub 自身** 與系統核心守護進程。
+* **三星原生多工與近期應用相容 (Samsung Native Recents Integration)：**
+  * **原生連按雙擊 Back 鍵**：手錶端可直接透過三星系統設定（「設定」>「進階功能」>「自訂按鍵」>「連按兩次返回鍵」設為「顯示近期應用程式」），隨時檢視近期 App 並釋放記憶體。
+  * **啟動器自身隱形防護 (`android:excludeFromRecents="true"`)**：WristHub Launcher 宣告排除在 Recent Apps 之外，多工清單中絕對不會出現自身 Launcher，保持純淨不干擾。
+  * **按鍵完全讓渡系統**：完全無底層按鍵攔截衝突，流暢呼叫系統級近期應用與背景清理。
 * **雙重首頁保護與防退 (Dual Home Protection)：**
   * **第三方 App 返回防護**：開啟 App 皆帶有 `FLAG_ACTIVITY_NEW_TASK or FLAG_ACTIVITY_RESET_TASK_IF_NEEDED`，按下返回鍵或關閉 App 後無縫回到 WristHub Launcher。
   * **永不退出**：在 Compose 與 Activity 層級全面攔截返回鍵，在錶盤按下返回鍵絕不退出。
   * **超時微光自動回歸**：進入 Ambient 微光睡眠超過 30 秒，抬腕喚醒時自動重置回歸 HUD 錶盤第一頁，並自動關閉所有開啟的抽屜與覆蓋層。
+  * **精確喚醒無誤觸**：切換 App 或返回首頁時不觸發 Gemini 語音，僅在真正抬腕亮螢幕時啟動語音偵測視窗。
 
 ---
 
@@ -150,11 +150,10 @@ wrist-hub/
 │   │   │   │   ├── AppDrawerManager.kt     # 應用清單掃描、動態廣播、常用推薦快取
 │   │   │   │   └── TaskManager.kt          # 多工追蹤、背景清理、白名單防護
 │   │   │   ├── presentation/
-│   │   │   │   ├── MainActivity.kt        # 生命週期、AOD 寬限期、連按雙擊下鍵攔截
-│   │   │   │   ├── WristHubApp.kt         # 60FPS 雙頁 Pager、Drawer 與 TaskManager 路由
+│   │   │   │   ├── MainActivity.kt        # 生命週期、AOD 寬限期、原生首頁保護與返回防護
+│   │   │   │   ├── WristHubApp.kt         # 60FPS 雙頁 Pager（PC 遙控 ⟷ HUD 錶盤）與 Drawer 路由
 │   │   │   │   ├── components/            # UI 視覺特效元件
 │   │   │   │   │   ├── AppDrawerOverlay.kt  # Wear OS 圓形魚眼曲面抽屜與推薦欄
-│   │   │   │   │   ├── TaskManagerOverlay.kt# 多工管理卡片與一鍵清理按鈕
 │   │   │   │   │   ├── GeminiAuraOverlay.kt # Apple Intelligence 風格圓邊光環
 │   │   │   │   │   ├── FloatingReplyCard.kt # 毛玻璃懸浮對話卡片與膠囊
 │   │   │   │   │   ├── FlashlightOverlay.kt # 全螢幕純白 1.0f 極致手電筒
