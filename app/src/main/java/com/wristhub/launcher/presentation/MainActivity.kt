@@ -69,6 +69,10 @@ class MainActivity : ComponentActivity() {
         // Initialize Raise-to-Speak Wake Assistant
         com.wristhub.launcher.audio.WakeAssistantManager.init(this)
 
+        // Initialize Watch Hardware Controller & Timer Manager
+        com.wristhub.launcher.hardware.WatchHardwareManager.init(this)
+        com.wristhub.launcher.hardware.WatchTimerManager.setContext(this)
+
         // Ensure RECORD_AUDIO permission is granted
         if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 101)

@@ -408,29 +408,49 @@ async def api_upload_bg(file: UploadFile = File(...)):
 AI_SYSTEM_INSTRUCTION = """
 你是一個專為 Samsung Galaxy Watch 5 Pro 設計的手腕 Siri / Intelligence 語音助理 (WristHub Assistant)。
 使用者對手錶說了一段話，請完成以下任務：
-1. 完整辨識使用者說的話 (transcript)。
-2. 判斷是否有對 Windows 電腦的操作意圖 (action)。
-   支援的 action 代碼有：
-   - MUTE_TOGGLE (靜音 / 取消靜音)
-   - VOLUME_UP (音量加大)
-   - VOLUME_DOWN (音量降低)
-   - PLAY_PAUSE (播放 / 暫停音樂或影片)
+1. 完整精確辨識使用者說的話 (transcript)。
+2. 判斷使用者的意圖與對應操作代碼 (action) 及參數 (action_params)。
+   支援的 action 代碼包含：
+   【手錶本機硬體控制】
+   - FLASHLIGHT_ON (打開手電筒 / 開啟照明)
+   - FLASHLIGHT_OFF (關閉手電筒)
+   - WATCH_VOLUME_UP (手錶音量調大)
+   - WATCH_VOLUME_DOWN (手錶音量調小)
+   - WATCH_MUTE (手錶靜音)
+   - WATCH_VIBRATE (切換手錶為震動模式)
+   - SET_TIMER (倒數計時，需附帶 action_params: {"minutes": 整數, "seconds": 整數})
+   - CANCEL_TIMER (取消倒數計時)
+   - SET_ALARM (設定手錶鬧鐘，需附帶 action_params: {"hour": 整數, "minute": 整數, "title": "名稱"})
+   - GET_BATTERY_STATUS (查詢手錶電量或續航)
+   - GET_HEART_RATE (查詢目前心率或心跳)
+   - GET_STEP_COUNT (查詢今日步數或運動進度)
+   - INTRODUCE_CAPABILITIES (當詢問你能做什麼/有什麼功能時，請熱情精簡地介紹手電筒、心跳/步數/電量、計時器、鬧鐘與電腦遙控)
+   
+   【Windows 電腦遠端遙控】
+   - MUTE_TOGGLE (電腦靜音 / 取消靜音)
+   - VOLUME_UP (電腦音量加大)
+   - VOLUME_DOWN (電腦音量降低)
+   - PLAY_PAUSE (電腦播放 / 暫停音樂或影片)
    - NEXT_TRACK (下一首 / 簡報下一頁)
    - PREV_TRACK (上一首 / 簡報上一頁)
    - LOCK_PC (鎖定電腦)
-   - SHOW_DESKTOP (顯示桌面)
+   - SHOW_DESKTOP (顯示電腦桌面)
    - OPEN_NOTEPAD (打開記事本)
    - OPEN_CALC (打開計算機)
-   - NONE (一般提問、查資料、天氣、閒聊，不需要電腦硬體操作)
+   
+   - NONE (一般常識問答、天氣、算術、閒聊，不需要硬體操作)
+
 3. 給予繁體中文回答 (reply)。
-   - 語氣自然、親切、口語化，適合在智慧手錶小螢幕閱讀與手錶揚聲器語音朗讀（繁體中文，約 25~50 個字，語意完整重點清晰）。
+   - 語氣自然、親切、口語化，適合在智慧手錶小螢幕閱讀與手錶揚聲器語音朗讀（繁體中文，約 20~45 個字，重點清晰）。
    - 如果是電腦指令，回答例如：「已為您靜音電腦」、「已加大音量」。
-   - 如果是資料查詢（天氣、常識、計算、資訊），直接回答精確重點。
+   - 如果是手錶指令，回答例如：「已為您打開手電筒」、「已開始倒數計時」。
+   - 如果是資料查詢，直接回答精確重點。
 
 請務必嚴格輸出符合以下結構的 JSON：
 {
   "transcript": "使用者說的原始文字",
   "action": "ACTION_CODE",
+  "action_params": {},
   "reply": "繁體中文回覆"
 }
 """
@@ -459,6 +479,8 @@ def execute_ai_action(action_code: str):
         return execute_action("CMD", "notepad.exe")
     elif code in ["OPEN_CALC", "CALC", "CALCULATOR"]:
         return execute_action("CMD", "calc.exe")
+    elif code in ["FLASHLIGHT_ON", "FLASHLIGHT_OFF", "WATCH_VOLUME_UP", "WATCH_VOLUME_DOWN", "WATCH_MUTE", "WATCH_VIBRATE", "SET_TIMER", "CANCEL_TIMER", "SET_ALARM", "GET_BATTERY_STATUS", "GET_HEART_RATE", "GET_STEP_COUNT", "INTRODUCE_CAPABILITIES"]:
+        return f"手錶指令: {code}"
     return None
 
 def call_gemini_api(parts: list, api_key: str, model: str = "gemini-3.5-flash-lite") -> dict:
@@ -660,6 +682,7 @@ async def process_ai_voice(file: UploadFile = File(...)):
         
         transcript = ai_res.get("transcript", "")
         action = ai_res.get("action", "NONE")
+        action_params = ai_res.get("action_params", {})
         reply = ai_res.get("reply", "")
         
         if ai_res.get("error"):
@@ -669,6 +692,7 @@ async def process_ai_voice(file: UploadFile = File(...)):
                 "transcript": transcript or "語音解析失敗",
                 "reply": reply,
                 "action": "NONE",
+                "action_params": {},
                 "action_result": None
             })
             
@@ -682,6 +706,7 @@ async def process_ai_voice(file: UploadFile = File(...)):
             "transcript": transcript,
             "reply": reply,
             "action": action,
+            "action_params": action_params,
             "action_result": action_result,
             "time": datetime.datetime.now().strftime("%H:%M:%S")
         })
@@ -696,6 +721,7 @@ async def process_ai_voice(file: UploadFile = File(...)):
             "transcript": transcript,
             "reply": reply,
             "action": action,
+            "action_params": action_params,
             "action_result": action_result
         }
     except Exception as e:

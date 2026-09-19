@@ -22,40 +22,68 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import com.wristhub.launcher.hardware.WatchHardwareManager
+import com.wristhub.launcher.hardware.OfflineIntentMatcher
 import java.util.concurrent.TimeUnit
 
 object AiSyncManager {
     private const val TAG = "AiSync"
 
-    private const val AI_SYSTEM_INSTRUCTION = """
+    fun getSystemInstruction(): String {
+        val sensorContext = WatchHardwareManager.getSensorContextPrompt()
+        return """
 你是一個專為 Samsung Galaxy Watch 5 Pro 設計的手腕 Siri / Intelligence 語音助理 (WristHub Assistant)。
-使用者對手錶說了一段話，請完成以下任務：
-1. 完整辨識使用者說的話 (transcript)。
-2. 判斷是否有對 Windows 電腦的操作意圖 (action)。
-   支援的 action 代碼有：
-   - MUTE_TOGGLE (靜音 / 取消靜音)
-   - VOLUME_UP (音量加大)
-   - VOLUME_DOWN (音量降低)
-   - PLAY_PAUSE (播放 / 暫停音樂或影片)
+使用者對手錶說了一段話，請依據其語音內容與以下手錶當前實時狀態快照完成任務：
+
+$sensorContext
+
+請完成以下任務：
+1. 完整精確辨識使用者說的話 (transcript)。
+2. 判斷使用者的意圖與對應操作代碼 (action) 及參數 (action_params)。
+   支援的 action 代碼包含：
+   【手錶本機硬體控制】
+   - FLASHLIGHT_ON (打開手電筒 / 開啟照明)
+   - FLASHLIGHT_OFF (關閉手電筒)
+   - WATCH_VOLUME_UP (手錶音量調大)
+   - WATCH_VOLUME_DOWN (手錶音量調小)
+   - WATCH_MUTE (手錶靜音)
+   - WATCH_VIBRATE (切換手錶為震動模式)
+   - SET_TIMER (倒數計時，需附帶 action_params: {"minutes": 整數, "seconds": 整數})
+   - CANCEL_TIMER (取消倒數計時)
+   - SET_ALARM (設定手錶鬧鐘，需附帶 action_params: {"hour": 整數, "minute": 整數, "title": "名稱"})
+   - GET_BATTERY_STATUS (查詢手錶電量或續航，請直接參考上方狀態快照給予精確回覆)
+   - GET_HEART_RATE (查詢目前心率或心跳，請直接參考上方狀態快照的心率數值回覆)
+   - GET_STEP_COUNT (查詢今日步數或運動進度，請直接參考上方狀態快照的步數回覆)
+   - INTRODUCE_CAPABILITIES (當詢問你能做什麼/有什麼功能時，請熱情精簡地介紹手電筒、心跳/步數/電量、計時器、鬧鐘與電腦遙控)
+   
+   【Windows 電腦遠端遙控 (若連線中)】
+   - MUTE_TOGGLE (電腦靜音 / 取消靜音)
+   - VOLUME_UP (電腦音量加大)
+   - VOLUME_DOWN (電腦音量降低)
+   - PLAY_PAUSE (電腦播放 / 暫停音樂或影片)
    - NEXT_TRACK (下一首 / 簡報下一頁)
    - PREV_TRACK (上一首 / 簡報上一頁)
    - LOCK_PC (鎖定電腦)
-   - SHOW_DESKTOP (顯示桌面)
+   - SHOW_DESKTOP (顯示電腦桌面)
    - OPEN_NOTEPAD (打開記事本)
    - OPEN_CALC (打開計算機)
-   - NONE (一般提問、查資料、天氣、閒聊，不需要電腦硬體操作)
-3. 給予繁體中文回答 (reply)。
-   - 語氣自然、親切、口語化，適合在智慧手錶小螢幕閱讀與手錶揚聲器語音朗讀（繁體中文，約 25~50 個字，語意完整重點清晰）。
-   - 如果是電腦指令且手錶處於離線狀態，回答如：「已收到指令，但目前未連線電腦喔」。
-   - 如果是資料查詢（天氣、常識、計算、資訊），直接回答精確重點。
+   
+   - NONE (一般常識問答、天氣、算術、閒聊，不需要硬體操作)
+
+3. 給予繁體中文回覆 (reply)。
+   - 語氣自然、親切、口語化，適合手錶小螢幕閱讀與手錶揚聲器朗讀（繁體中文，約 20~45 個字，重點清晰）。
+   - 若為查詢心率、步數、電量，請直接引用上方實時狀態快照中的最新數值回答。
+   - 若為電腦指令且手錶未連線電腦，回覆如：「已收到指令，但目前未連線電腦喔」。
 
 請務必嚴格輸出符合以下結構的 JSON：
 {
   "transcript": "使用者說的原始文字",
   "action": "ACTION_CODE",
+  "action_params": {},
   "reply": "繁體中文回覆"
 }
-"""
+""".trimIndent()
+    }
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
@@ -141,6 +169,21 @@ object AiSyncManager {
                 val action = json.optString("action", "NONE")
                 val actionResult = if (json.has("action_result") && !json.isNull("action_result")) json.getString("action_result") else null
 
+                val actionParams = mutableMapOf<String, Any>()
+                val paramsObj = json.optJSONObject("action_params")
+                if (paramsObj != null) {
+                    val it = paramsObj.keys()
+                    while (it.hasNext()) {
+                        val k = it.next()
+                        actionParams[k] = paramsObj.get(k)
+                    }
+                }
+
+                // 立即調用手錶本機硬體與系統控制器
+                withContext(Dispatchers.Main) {
+                    WatchHardwareManager.executeAction(action, actionParams)
+                }
+
                 val conversation = AiConversation(
                     userText = transcript,
                     aiReply = reply,
@@ -207,7 +250,7 @@ object AiSyncManager {
                                 })
                             })
                             put(JSONObject().apply {
-                                put("text", AI_SYSTEM_INSTRUCTION)
+                                put("text", getSystemInstruction())
                             })
                         }
                         put("parts", partsArray)
@@ -262,17 +305,32 @@ object AiSyncManager {
                         var transcript = "語音提問"
                         var reply = "抱歉，目前無法理解這段內容。"
                         var action = "NONE"
+                        val actionParams = mutableMapOf<String, Any>()
 
                         try {
                             val parsed = JSONObject(cleanText)
                             transcript = parsed.optString("transcript", "語音提問")
                             reply = parsed.optString("reply", "處理完成")
                             action = parsed.optString("action", "NONE")
+
+                            val paramsObj = parsed.optJSONObject("action_params")
+                            if (paramsObj != null) {
+                                val it = paramsObj.keys()
+                                while (it.hasNext()) {
+                                    val k = it.next()
+                                    actionParams[k] = paramsObj.get(k)
+                                }
+                            }
                         } catch (_: Exception) {
                             reply = cleanText.ifEmpty { reply }
                         }
 
-                        val actionResult = if (action != "NONE") "（隨身模式・電腦離線）" else null
+                        // 立即調用手錶本機硬體與系統控制器
+                        withContext(Dispatchers.Main) {
+                            WatchHardwareManager.executeAction(action, actionParams)
+                        }
+
+                        val actionResult = if (action != "NONE") "（本機執行完成）" else null
 
                         val conversation = AiConversation(
                             userText = transcript,
@@ -313,6 +371,19 @@ object AiSyncManager {
                 audioFile.delete()
             } catch (_: Exception) {}
         }
+    }
+
+    fun processOfflineText(
+        text: String,
+        onSuccess: (AiConversation) -> Unit
+    ): Boolean {
+        val matched = OfflineIntentMatcher.match(text) ?: return false
+        WatchHardwareManager.executeAction(matched.action)
+        _conversations.value = listOf(matched) + _conversations.value
+        _latestReply.value = matched
+        _isProcessing.value = false
+        onSuccess(matched)
+        return true
     }
 
     fun clearHistory() {

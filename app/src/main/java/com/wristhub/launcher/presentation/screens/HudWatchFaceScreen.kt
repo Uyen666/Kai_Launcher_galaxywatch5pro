@@ -170,6 +170,12 @@ fun HudWatchFaceScreen(
     var stepCount by remember { mutableIntStateOf(0) }
     var heartRate by remember { mutableIntStateOf(0) }
 
+    val liveHeartRate by com.wristhub.launcher.hardware.WatchHardwareManager.currentHeartRate.collectAsState()
+    val liveStepCount by com.wristhub.launcher.hardware.WatchHardwareManager.currentStepCount.collectAsState()
+
+    val effectiveHeartRate = if (liveHeartRate > 0) liveHeartRate else heartRate
+    val effectiveStepCount = if (liveStepCount > 0) liveStepCount else stepCount
+
     // Register Sensors for Steps and Heart Rate
     DisposableEffect(wfConfig.showSteps, wfConfig.showHeartRate) {
         val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -384,7 +390,7 @@ fun HudWatchFaceScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "👣 ${if (stepCount > 0) String.format(Locale.getDefault(), "%,d", stepCount) else "--"}",
+                    text = "👣 ${if (effectiveStepCount > 0) String.format(Locale.getDefault(), "%,d", effectiveStepCount) else "--"}",
                     color = if (isAmbient) Color.Gray else stepsColor,
                     fontSize = wfConfig.stepsFontSize.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -402,7 +408,7 @@ fun HudWatchFaceScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "❤️ ${if (heartRate > 0) "$heartRate bpm" else "--"}",
+                    text = "❤️ ${if (effectiveHeartRate > 0) "$effectiveHeartRate bpm" else "--"}",
                     color = if (isAmbient) Color.Gray else heartRateColor,
                     fontSize = wfConfig.heartRateFontSize.sp,
                     fontWeight = FontWeight.SemiBold,

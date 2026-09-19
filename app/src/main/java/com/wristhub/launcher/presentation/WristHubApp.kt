@@ -13,9 +13,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.wear.compose.material.HorizontalPageIndicator
 import androidx.wear.compose.material.PageIndicatorState
+import androidx.compose.foundation.layout.padding
 import com.wristhub.launcher.network.PcWebSocketManager
+import com.wristhub.launcher.presentation.components.FlashlightOverlay
 import com.wristhub.launcher.presentation.components.FloatingReplyCard
 import com.wristhub.launcher.presentation.components.GeminiAuraOverlay
+import com.wristhub.launcher.presentation.components.TimerBadge
 import com.wristhub.launcher.presentation.screens.HudWatchFaceScreen
 import com.wristhub.launcher.presentation.screens.PcRemoteScreen
 import com.wristhub.launcher.presentation.theme.WristHubTheme
@@ -143,6 +146,13 @@ fun WristHubApp(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
 
+                // Floating Timer Badge (if active)
+                TimerBadge(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 24.dp)
+                )
+
                 // Siri / Apple Intelligence Bezel Aura Overlay
                 GeminiAuraOverlay()
 
@@ -150,5 +160,8 @@ fun WristHubApp(
                 FloatingReplyCard()
             }
         }
+
+        // Full-screen pure white Flashlight Overlay (highest z-index, covers ambient & active)
+        FlashlightOverlay()
     }
 }
