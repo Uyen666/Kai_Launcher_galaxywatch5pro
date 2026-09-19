@@ -127,7 +127,7 @@ fun AppDrawerOverlay(
     val currentLetter by remember(listState, installedApps, recentApps) {
         derivedStateOf {
             val centerIndex = listState.centerItemIndex
-            val recentHeaderOffset = if (recentApps.isNotEmpty()) 2 else 1
+            val recentHeaderOffset = if (recentApps.isNotEmpty()) 1 else 0
             if (centerIndex < recentHeaderOffset) {
                 "⭐"
             } else {
@@ -235,8 +235,9 @@ fun AppDrawerOverlay(
                     val dy = (down.position.y - center.y).toDouble()
                     val dist = kotlin.math.hypot(dx, dy).toFloat()
 
-                    // 落在外緣虛擬錶圈感應環 (半徑 55% ~ 120% 區間)
-                    if (dist >= radius * 0.55f && dist <= radius * 1.20f) {
+                    // 嚴格鎖定在外緣虛擬錶圈感應環 (半徑 70% ~ 130% 區間，即螢幕邊緣與鈦金屬外框)
+                    // 內圈 70% 區域 100% 保證正常上下垂直滑動與按鍵點擊
+                    if (dist >= radius * 0.70f && dist <= radius * 1.30f) {
                         var prevAngle = atan2(dy, dx).toFloat()
 
                         var isRotating = false
@@ -253,10 +254,17 @@ fun AppDrawerOverlay(
                                 break
                             }
 
-                            val currentAngle = atan2(
-                                (pointer.position.y - center.y).toDouble(),
-                                (pointer.position.x - center.x).toDouble()
-                            ).toFloat()
+                            val curDx = (pointer.position.x - center.x).toDouble()
+                            val curDy = (pointer.position.y - center.y).toDouble()
+                            val curDist = kotlin.math.hypot(curDx, curDy).toFloat()
+
+                            // 若手指滑入中央內容區 (小於 60%)，判定為正常操作，立即中斷退出錶圈手勢
+                            if (curDist < radius * 0.60f) {
+                                isBezelTouching = false
+                                break
+                            }
+
+                            val currentAngle = atan2(curDy, curDx).toFloat()
 
                             var deltaAngle = currentAngle - prevAngle
                             val pi = PI.toFloat()
@@ -265,8 +273,8 @@ fun AppDrawerOverlay(
 
                             if (!isRotating) {
                                 accumulatedAngle += deltaAngle
-                                // 旋轉超過約 2.3 度 (0.04 弧度) 即判定為圓周旋轉手勢並接管
-                                if (abs(accumulatedAngle) >= 0.04f) {
+                                // 旋轉超過約 3.2 度 (0.055 弧度) 即判定為圓周旋轉意圖並接管事件
+                                if (abs(accumulatedAngle) >= 0.055f) {
                                     isRotating = true
                                     isBezelTouching = true
                                     touchBezelAngle = currentAngle
@@ -287,7 +295,7 @@ fun AppDrawerOverlay(
                                 val speedMultiplier = (1.0f + (angularSpeed - 1.2f) * 0.45f).coerceIn(1.0f, 3.5f)
 
                                 // 基準滾動比率：順時針向下、逆時針向上
-                                val baseFactor = (size.height * 1.9f) / (2f * pi)
+                                val baseFactor = (size.height * 2.0f) / (2f * pi)
                                 val scrollPixels = deltaAngle * baseFactor * speedMultiplier
 
                                 coroutineScope.launch {
@@ -309,15 +317,6 @@ fun AppDrawerOverlay(
                     }
                 }
             }
-            // 支援在抽屜非滾動區域直接向下拖曳手勢
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragEnd = { onFling(0f) },
-                    onVerticalDrag = { _, dragAmount ->
-                        onDragDelta(dragAmount)
-                    }
-                )
-            }
     ) {
         Scaffold(
             positionIndicator = {
@@ -327,55 +326,10 @@ fun AppDrawerOverlay(
             ScalingLazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 20.dp),
+                contentPadding = PaddingValues(start = 14.dp, top = 44.dp, end = 14.dp, bottom = 32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 1. 極簡科技感 APPS 標題徽章（支援點擊一鍵回頂）
-                item {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp, bottom = 10.dp)
-                            .clip(RoundedCornerShape(percent = 50))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                coroutineScope.launch {
-                                    listState.animateScrollToItem(0)
-                                }
-                            }
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "APPS",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 2.sp,
-                            color = Color(0xFF00E5FF)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(Color(0xFF00E5FF).copy(alpha = 0.12f))
-                                .border(0.5.dp, Color(0xFF00E5FF).copy(alpha = 0.35f), CircleShape)
-                                .padding(horizontal = 6.dp, vertical = 1.dp)
-                        ) {
-                            Text(
-                                text = "${installedApps.size}",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF00E5FF)
-                            )
-                        }
-                    }
-                }
-
-                // 2. 常用推薦分區 (精緻三點陣列 + 髮絲漸變線，不佔用大字標題)
+                // 1. 常用推薦分區 (精緻三點陣列 + 髮絲漸變線，不佔用大字標題)
                 if (recentApps.isNotEmpty()) {
                     item {
                         Column(
@@ -456,18 +410,85 @@ fun AppDrawerOverlay(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(44.dp)
+                .height(48.dp)
                 .align(Alignment.TopCenter)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
                             Color.Black,
-                            Color.Black.copy(alpha = 0.65f),
+                            Color.Black.copy(alpha = 0.75f),
                             Color.Transparent
                         )
                     )
                 )
         )
+
+        // 5. 常駐頂部 APPS 膠囊徽章（永不隨清單滾走，滑到最底部隨時可點擊一鍵回頂）
+        val isScrolledDown by remember(listState) {
+            derivedStateOf {
+                listState.centerItemIndex > 0 || listState.centerItemScrollOffset > 30
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 10.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(Color(0xF5080E1B))
+                .border(
+                    width = if (isScrolledDown) 1.dp else 0.6.dp,
+                    color = if (isScrolledDown) Color(0xFF00E5FF) else Color(0x6600E5FF),
+                    shape = RoundedCornerShape(percent = 50)
+                )
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    coroutineScope.launch {
+                        listState.animateScrollToItem(0)
+                    }
+                }
+                .padding(horizontal = 10.dp, vertical = 3.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (isScrolledDown) {
+                    Text(
+                        text = "↑",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF00E5FF)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                }
+                Text(
+                    text = "APPS",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.5.sp,
+                    color = Color(0xFF00E5FF)
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color(0xFF00E5FF).copy(alpha = 0.15f))
+                        .padding(horizontal = 5.dp, vertical = 0.5.dp)
+                ) {
+                    Text(
+                        text = "${installedApps.size}",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00E5FF)
+                    )
+                }
+            }
+        }
 
         // 5. 底部純黑漸變遮罩 (Bottom Vignette - 項目融於底部鈦金屬黑框)
         Box(
