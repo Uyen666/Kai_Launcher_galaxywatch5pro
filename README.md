@@ -4,10 +4,11 @@
 [![Device](https://img.shields.io/badge/Device-Samsung%20Galaxy%20Watch%205%20Pro-orange.svg)](https://www.samsung.com)
 [![UI](https://img.shields.io/badge/UI-Jetpack%20Compose%20for%20Wear%20OS-brightgreen.svg)](https://developer.android.com/training/wearables/compose)
 [![Backend](https://img.shields.io/badge/PC%20Server-Python%20WebSocket-yellow.svg)](https://python.org)
+[![Gemini](https://img.shields.io/badge/AI-Google%20Gemini%20Flash--Lite-blueviolet.svg)](https://aistudio.google.com)
 
 **WristHub** 是一款專為 **Samsung Galaxy Watch 5 Pro (SM-R925F)** 量身打造的「手腕全能指揮中心／自訂啟動器（Custom Launcher）」。
 
-透過遵循 Android Wear OS 原生架構規範，**完全不需要 Root、刷機或破壞三星 Knox 原廠保固**，即可賦予手錶極具科幻感的 HUD 儀表錶盤、毫秒級延遲的電腦遙控台（支援手錶旋轉外圈邊框調音量），以及手腕 AI 語音助理介面。
+透過遵循 Android Wear OS 原生架構規範，**完全不需要 Root、刷機或破壞三星 Knox 原廠保固**，即可賦予手錶極具科幻感的 HUD 儀表錶盤、毫秒級延遲的電腦遙控台（支援手錶旋轉外圈邊框調音量），以及**系統級無縫手腕 Gemini 智慧助理（抬腕直接說 + 圓邊光環 + 手錶硬體控制 + 雙模隨身直連）**。
 
 ---
 
@@ -21,21 +22,59 @@
 
 ## 🌟 核心特色功能
 
-### 1. 🎨 高度可自訂義錶面（鎖定畫面級體驗 + 100% 離線優先）
+### 1. 🤖 系統級 Gemini 手腕全能助理（Siri / Apple Intelligence 級體驗）
+
+從「只能聊天的對話機器人」，徹底進化為**直接掌控手錶硬體與系統 API 的手腕智慧大腦**！
+
+* **⌚ 抬腕直接說（Raise to Speak）**：
+  * **0% 微光耗電（Zero AOD Drain）**：螢幕暗下或微光模式時，硬體麥克風完全關閉釋放，零額外耗電。
+  * **抬手亮螢幕即說**：進入活躍模式時自動開啟 3.5 秒語音偵測視窗，直接開口說話，**完全不需要喊機器人般的喚醒詞**！若未說話自動釋放麥克風。
+  * **雙擊備用手勢**：手錶已亮著時，快速**雙擊錶面任意處**亦可隨時召喚助理。
+* **✨ 圓框動態霓虹光環（Bezel Aura Glow）**：
+  * 專屬 Galaxy Watch 5 Pro 內凹鈦金屬外框打造的動態 SweepGradient 五色光環。
+  * 說話時隨音訊能量即時呼吸膨脹擴散，視覺科技感直接拉滿。
+* **🤫 800ms 靜音自動截斷（VAD）**：
+  * 內建 16-bit PCM 即時能量分析器，說完話停頓 0.8 秒手錶自動微震一下結束收音，光環於 0.5 秒平滑淡出，全程無需手動點按螢幕。
+* **💬 懸浮毛玻璃對話卡片 + 手錶揚聲器 TTS 朗讀**：
+  * 頂部浮現極簡思考膠囊，完成後彈出半透明毛玻璃卡片並由手錶實體喇叭唸出回覆，朗讀結束數秒後自動向上收合，時鐘走時全程不中斷。
+* **🛠️ 手錶本機硬體控制與 Function Calling**：
+  * 🔦 **極致高亮手電筒**：說*「打開手電筒」* ➔ 視窗亮度拉到最大 `1.0f`，全螢幕純白高亮照明，輕觸螢幕任意處立即關閉。
+  * ⏱️ **本機倒數計時器**：說*「倒數 3 分鐘」* ➔ 背景倒數，錶面浮現橘色小膠囊 `⏱️ 02:59`，時間到觸發 **3 秒強烈節奏脈衝震動** 與語音通知。
+  * ❤️ **即時心率與步數**：說*「我現在心跳多少？」*、*「我今天走幾步了？」* ➔ 零延遲上下文預注入，1 秒內自然回覆即時 PPG 心率與累計步數。
+  * 🔋 **電量與續航預估**：說*「手錶還能用多久？」* ➔ 抓取系統 `BatteryManager` 回覆精準剩餘 % 與充電狀態。
+  * 🔊 **音量與震動調節**：說*「手錶大聲點」*、*「手錶靜音」*、*「切換震動模式」* ➔ 調節手錶本機音效。
+  * ⏰ **設定系統鬧鐘**：說*「設定早上 7 點鬧鐘」* ➔ 自動發送 Android 原生鬧鐘 Intent。
+  * 🤖 **自我介紹**：說*「你能做什麼？」* ➔ Gemini 生動詳細地逐一介紹其所有本機硬體、健康、工具與電腦控制能力。
+* **🔌 斷網離線正則降級（Offline Fallback Engine）**：
+  * 出門無 Wi-Fi、無手機網路時，本機正則比對器直接攔截「手電筒」、「倒數 X 分鐘」、「手錶電量」，**100% 在手錶本機執行**，確保核心工具永不當機。
+* **☁️ 雙模智慧路由（Dual-Mode Routing）**：
+  * **💻 電腦連線模式**：區網內連線電腦時，優先將語音上傳至電腦端，支援完整的 Windows 硬體指令。
+  * **☁️ 隨身直連模式**：出門在外（電腦關機、透過 iPhone/Android 藍牙網路或手錶 Wi-Fi），手錶**自動無縫走 HTTPS 直連 Google Gemini API (`gemini-3.5-flash-lite`)**！
+* **🔑 零輸入金鑰同步（Zero-Input Key Sync）**：
+  * 在電腦 Web 控制台設定好 Gemini API Key 後，手錶只要連線一次，電腦自動透過 WebSocket 無線推送到手錶本地 `SharedPreferences` 永久保存，免去在手錶小螢幕痛苦輸入金鑰的困擾。
+
+---
+
+### 2. 🎨 高度可自訂義錶面（鎖定畫面級體驗 + 100% 離線優先）
 * **大螢幕 Web 視覺化工坊（Watch Face Studio）：**
   * 打開 `http://localhost:8765` 切換至「🎨 錶面自訂工坊」，具備 450x450 圓形實時 WYSIWYG 畫布預覽。
 * **個人照片 / 動圖導入（完全無線化）：**
   * 支援上傳任意 JPG、PNG、WebP 或 GIF，電腦後端（Pillow）自動置中裁切、縮放至 450x450，並轉為超省電高壓縮 WebP。
   * 手錶端透過背景協程（Coroutine）將檔案永久下載至 `context.filesDir/custom_bg.webp`。
 * **出門 100% 離線可用（Offline-First）：**
-  * 斷開電腦或出門在外時，手錶開機瞬間自本地快取載入圖片與配置，基本時鐘、電量弧環、日期功能完整保留，不依賴電腦連線。
+  * 斷開電腦或出門在外時，手錶開機瞬間自本地快取載入圖片與配置，基本時鐘、電量弧環、日期、心率、步數功能完整保留。
 * **雙時鐘模式：**
   * **數位 HUD 模式**：霓虹色調大字體數位時間、實時秒數。
   * **經典指針模式**：高精度幾何 Canvas 繪製 12 小時刻度、時針、分針與每秒跳動一次的秒針（Tick-Tock）。
 * **防眩光暗角濾鏡 (Dim Ratio)**：0%~70% 可調黑底半透明遮罩，確保背景再花俏也能清晰閱讀時間。
-* **AOD 微光常亮模式相容：** 手放下時背景自動轉為純黑 OLED 關閉像素省電防烙印，抬腕喚醒瞬間（0ms）無縫恢復個人自訂背景！
+* **AOD 微光智能喚醒機制：**
+  * 手放下時背景自動轉為純黑 OLED 關閉像素省電防烙印。
+  * **30 秒黃金寬限期**：短暫垂手（< 30 秒）維持原頁面；閒置超過 30 秒抬腕時，**無感靜默重置（Instant Snap）回中央時鐘**。
+  * **任務保護（Task Guard）**：AI 錄音中、推理中或語音朗讀中時豁免重置，絕不打斷。
 
-### 2. 💻 PC 遙控控制台（左滑分頁 & 電腦端 Web 控制台）
+---
+
+### 3. 💻 PC 遙控控制台（左滑分頁 & 電腦端 Web 控制台）
 * **本機 Web 控制台（Local Web Dashboard）：**
   * 瀏覽器打開 `http://localhost:8765` 即可進入視覺化管理後台。
   * **動態按鍵映射（Dynamic Mapping）**：在網頁上隨意變更按鈕圖示、名稱、顏色與動作，點擊「儲存並同步」，手錶畫面**秒速熱更新**，完全無需重新編譯 APK！
@@ -50,39 +89,13 @@
   * **旋轉外圈（Rotary Bezel）支援：** 手指在 Watch 5 Pro 螢幕外圈滑動觸碰邊框，可平滑調節電腦音量！
   * **線性馬達觸覺震動（Haptic Feedback）：** 每次按鍵均提供清脆的觸覺反饋。
 
-### 3. 🤖 Gemini AI 手腕隨身助理（右滑分頁・Siri Intelligence 級體驗）
-* **極致手腕錄音動畫（Siri / Apple Intelligence 呼吸光暈）：**
-  * 手錶待命時呈現溫潤流轉的彩虹呼吸光暈；點擊錄音時，擴散紅色脈衝動態光環（Pulse Aura）並伴隨線性馬達震動反饋。
-  * 透過 [AudioRecorderManager.kt](file:///c:/Users/林尚楷/.gemini/antigravity/scratch/wrist-hub/app/src/main/java/com/wristhub/launcher/audio/AudioRecorderManager.kt) 採樣 16kHz / 32kbps AAC 超輕量音訊（3 秒僅約 15KB），耗電極低且瞬間完成無線上傳。
-* **雙向對話卡片（Conversation Cards）：**
-  * 專為圓形手錶螢幕打造的流暢捲動對話流：
-    * 🗣️ **語音轉譯卡**：精確呈現使用者語音識別出的原始文字與時間戳記。
-    * 🤖 **Gemini 智慧回覆卡**：繁體中文重點摘要（25~50 字，完美適配手錶視野）。
-    * ⚡ **電腦連動執行徽章**：若指令觸發硬體操作，卡片即時標註 `⚡ 電腦已執行: [動作名稱]`。
-* **雙重回報（視覺卡片 + 手錶揚聲器 TTS 朗讀）：**
-  * 整合 [WatchTtsManager.kt](file:///c:/Users/林尚楷/.gemini/antigravity/scratch/wrist-hub/app/src/main/java/com/wristhub/launcher/audio/WatchTtsManager.kt)，回答產生時自動調用 Galaxy Watch 5 Pro 內建實體揚聲器進行清晰語音朗讀。
-  * 每張卡片皆提供「🔊 重新朗讀 / ⏹ 停止」按鈕。
-* **手腕自然語言電腦遙控：**
-  * 支援直接用語音下達 Windows 控制指令：
-    * 🔇 *「把電腦靜音 / 取消靜音」* ➔ 觸發 `MUTE_TOGGLE`
-    * 🔊 *「聲音大一點 / 音量減少」* ➔ 觸發 `VOLUME_UP` / `VOLUME_DOWN`
-    * 🔒 *「幫我鎖定電腦」* ➔ 觸發 `LOCK_PC`
-    * 📝 *「打開記事本 / 開計算機」* ➔ 呼叫 `notepad.exe` / `calc.exe`
-    * ⏯️ *「暫停播放 / 下一首歌 / 簡報下一頁」* ➔ 觸發多媒體與簡報按鍵
-    * 🌤️ *「明天台北天氣如何？/ 幫我計算 125 乘 8」* ➔ 智慧百科與資訊查詢
-* **最新 2026 世代模型支援與智慧自動備援 (Auto-Fallback)：**
-  * 預設採用 **`gemini-3.5-flash-lite`**（1~2 秒極速回覆、穩定不卡頓、低延遲）。
-  * 內建 **智慧自動備援**：後端若偵測到 Google 伺服器尖峰忙碌 (503) 或舊模型退役 (404)，自動瞬間切換至最穩定的模型重試，手錶與使用者對話永不中斷！
-* **電腦端 Web 控制台整合（「🤖 Gemini AI 設定」分頁）：**
-  * 支援視覺化 API Key 輸入、顯示/隱藏與一鍵清空按鈕。
-  * 支援模型即時切換（`gemini-3.5-flash-lite`、`gemini-3.6-flash`、`gemini-3.5-flash`、`gemini-3.8-flash`）。
-  * 提供電腦端「🧪 模擬提問測試盒」與即時對話串流，方便免戴手錶快速測試。
+---
 
 ### 4. ⚡ 圓形螢幕極致切換效能優化
-* **消弭切換掉幀與記憶體頻寬瓶頸：**
-  * 徹底重構手錶端 `HorizontalPager`，移除每幀強制觸發 GPU 離屏合成的 `saveLayer` 記憶體停頓。
-  * 設計獨立圓形黑膠唱片裁切（`CircleShape`）與 3D 景深縮放（`scale = 1f - 0.15f * offset`），左右滑動時呈現優雅深邃的層次感且完全不穿模。
-  * 啟用 `beyondViewportPageCount = 1` 預加載相鄰分頁，滑動幀率穩定貼滿 60FPS。
+* **精簡雙頁架構：**
+  * 手錶 Pager 優化為最乾淨的 2 頁：`左：PC 遙控器` ⟷ `中：HUD 時鐘錶面`，助理升級為全局浮動。
+* **60FPS 流暢切換：**
+  * 移除每幀強制觸發 GPU 離屏合成的 `saveLayer` 記憶體停頓，採用圓形黑膠唱片裁切與 3D 景深縮放，滑動幀率穩定貼滿 60FPS。
 * **Windows 桌面一鍵雙開捷徑：**
   * 具備 `launch_web.py` 與桌面捷徑 `WristHub 控制台.lnk`，雙擊自動在背景喚醒 Python 守護程式並秒開瀏覽器後台。
 
@@ -90,9 +103,8 @@
 
 ## 🔒 安全性與隱私聲明 (Security & Privacy)
 
-本專案遵循資安與隱私保護原則：
 1. **純區域網路通訊（Local Only）：** 手錶與電腦之間的 WebSocket 預設僅在家庭/工作區網直連傳輸，不經過任何第三方雲端伺服器。
-2. **無敏感個人資料（No Secrets Committed）：** `.gitignore` 嚴密排除 API 金鑰（`gemini_api_key` 僅保存在本機 `config.json`，絕不上傳公開倉庫）。
+2. **無敏感個人資料（No Secrets Committed）：** `.gitignore` 嚴密排除 API 金鑰（`gemini_api_key` 僅保存在本機 `config.json` 與手錶本地加密 SharedPreferences，絕不上傳公開倉庫）。
 3. **系統無損保證（Non-invasive Architecture）：** 程式為標準 Wear OS App，完全不影響 Knox 保固與手錶原廠健康功能。
 
 ---
@@ -104,21 +116,31 @@ wrist-hub/
 ├── app/                            # Wear OS 手錶端 Android 專案
 │   ├── src/main/
 │   │   ├── java/com/wristhub/launcher/
-│   │   │   ├── audio/
-│   │   │   │   ├── AudioRecorderManager.kt# AAC 16kHz 麥克風輕量錄音管理
-│   │   │   │   └── WatchTtsManager.kt     # 手錶揚聲器 TextToSpeech 朗讀
-│   │   │   ├── data/
-│   │   │   │   └── AiConversation.kt      # 對話卡片資料模型
+│   │   │   ├── audio/                     # 音訊處理與抬腕監聽
+│   │   │   │   ├── VoiceActivityDetector.kt # 輕量 RMS 800ms 靜音截斷器
+│   │   │   │   ├── WakeAssistantManager.kt  # 抬腕 3.5s 監聽與全域助理生命週期
+│   │   │   │   ├── WavUtils.kt             # 16-bit PCM 轉標準 WAV 工具
+│   │   │   │   ├── AudioRecorderManager.kt # 麥克風錄音管理
+│   │   │   │   └── WatchTtsManager.kt      # 全局單例 TextToSpeech 揚聲器預熱
+│   │   │   ├── hardware/                  # 手錶本機硬體與系統調用
+│   │   │   │   ├── WatchHardwareManager.kt # 手電筒、音量/震動、電池、心率、步數
+│   │   │   │   ├── WatchTimerManager.kt    # 本機倒數計時器與脈衝震動警報
+│   │   │   │   └── OfflineIntentMatcher.kt # 斷網離線正則關鍵字比對引擎
 │   │   │   ├── presentation/
-│   │   │   │   ├── MainActivity.kt        # 主入口、Ambient 微光常亮監聽
-│   │   │   │   ├── WristHubApp.kt         # 60FPS 平滑圓形多頁容器
-│   │   │   │   ├── screens/               # HUD 錶盤、PC 遙控、AI 助理介面
+│   │   │   │   ├── MainActivity.kt        # 生命週期、AOD 寬限期、權限申請
+│   │   │   │   ├── WristHubApp.kt         # 60FPS 雙頁 Pager 與頂層光環覆蓋
+│   │   │   │   ├── components/            # UI 視覺特效元件
+│   │   │   │   │   ├── GeminiAuraOverlay.kt # Apple Intelligence 風格圓邊光環
+│   │   │   │   │   ├── FloatingReplyCard.kt # 毛玻璃懸浮對話卡片與膠囊
+│   │   │   │   │   ├── FlashlightOverlay.kt # 全螢幕純白 1.0f 極致手電筒
+│   │   │   │   │   └── TimerBadge.kt        # 錶面倒數計時橘色小膠囊
+│   │   │   │   ├── screens/               # HUD 錶盤與 PC 遙控介面
 │   │   │   │   └── theme/                 # 科幻 HUD 霓虹色系配色
 │   │   │   └── network/
-│   │   │       ├── PcWebSocketManager.kt  # OkHttp WebSocket 客戶端
-│   │   │       └── AiSyncManager.kt       # 音訊上傳與 Gemini 狀態分發
+│   │   │       ├── PcWebSocketManager.kt  # OkHttp WebSocket 客戶端與金鑰同步
+│   │   │       └── AiSyncManager.kt       # 雙模路由（PC轉發 / HTTPS直連Gemini）
 │   │   ├── res/                           # 圖示、字串與資源
-│   │   └── AndroidManifest.xml            # 錄音、網路、HOME 啟動器宣告
+│   │   └── AndroidManifest.xml            # 錄音、震動、網路、HOME 啟動器宣告
 │   └── build.gradle.kts
 ├── pc-daemon/                      # 電腦端 Python 守護程式
 │   ├── wrist_server.py             # FastAPI / WebSocket / Gemini API 伺服器
@@ -152,23 +174,22 @@ wrist-hub/
    ```
 
 ### 3. 啟動電腦端 Python 守護程式
-安裝後端與圖像轉碼相依套件：
+安裝相依套件：
 ```powershell
 pip install fastapi uvicorn websockets pillow imageio
 ```
 **啟動方式（二選一）：**
-* **方法 A（推薦・一鍵雙開）**：直接雙擊桌面捷徑 **`WristHub 控制台.lnk`**（或在終端機執行 `python pc-daemon/launch_web.py`），將自動常駐伺服器並秒開瀏覽器後台。
+* **方法 A（推薦・一鍵雙開）**：直接雙擊桌面捷徑 **`WristHub 控制台.lnk`**（或執行 `python pc-daemon/launch_web.py`），將自動常駐伺服器並秒開瀏覽器後台。
 * **方法 B（命令列啟動）**：
   ```powershell
   python pc-daemon/wrist_server.py
   ```
-*(伺服器將在 `0.0.0.0:8765` 監聽來自手錶的連線與 HTTP 請求)*
 
-### 4. 設定 Gemini AI 手腕助理（可選・推薦）
+### 4. 設定 Gemini AI 手腕助理（自動無線同步金鑰）
 1. 電腦瀏覽器打開 `http://localhost:8765`。
 2. 切換至 **「🤖 Gemini AI 設定」** 頁籤。
-3. 貼上您的 [Google AI Studio API Key](https://aistudio.google.com/apikey)（免費），模型推薦選擇 **`Gemini 3.5 Flash Lite (極速響應、最推薦 ⭐)`**，點擊 **「💾 儲存 AI 設定」**。
-4. 可在下方測試框輸入「*把電腦靜音*」或「*明天台北天氣如何*」即時驗證。
+3. 貼上您的 [Google AI Studio API Key](https://aistudio.google.com/apikey)（免費），模型選擇 **`Gemini 3.5 Flash Lite (最推薦 ⭐)`**，點擊 **「💾 儲存 AI 設定」**。
+4. 電腦會**自動透過 WebSocket 將金鑰推送至手錶 SharedPreferences**，出門在外即使離線無電腦，手錶依然具備直連 Google 獨立運算能力！
 
 ### 5. 編譯並安裝手錶 App
 在專案根目錄執行 Gradle 編譯並推送至手錶：
