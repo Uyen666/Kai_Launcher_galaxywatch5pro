@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.*
+import com.wristhub.launcher.audio.WakeAssistantManager
 import com.wristhub.launcher.network.PcWebSocketManager
 import com.wristhub.launcher.presentation.theme.*
 
@@ -92,6 +93,18 @@ fun PcRemoteScreen(
                             shape = CircleShape
                         )
                 )
+                Spacer(modifier = Modifier.width(6.dp))
+                // Wireless Dictation Button (Voice typing to PC)
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        WakeAssistantManager.startDictationListening()
+                    },
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0x3300E5FF)),
+                    modifier = Modifier.size(26.dp)
+                ) {
+                    Text("⌨️", fontSize = 11.sp)
+                }
                 Spacer(modifier = Modifier.width(6.dp))
                 // Lock PC button
                 Button(

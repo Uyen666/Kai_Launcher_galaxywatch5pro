@@ -30,8 +30,31 @@ VK_PRIOR = 0x21  # Page Up
 VK_NEXT = 0x22   # Page Down
 VK_LWIN = 0x5B
 VK_D = 0x44
+VK_RETURN = 0x0D
 
 user32 = ctypes.windll.user32
+from ctypes import wintypes
+
+KEYEVENTF_UNICODE = 0x0004
+KEYEVENTF_KEYUP = 0x0002
+
+class KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ('wVk', wintypes.WORD),
+        ('wScan', wintypes.WORD),
+        ('dwFlags', wintypes.DWORD),
+        ('time', wintypes.DWORD),
+        ('dwExtraInfo', ctypes.c_void_p)
+    ]
+
+class INPUT_I(ctypes.Union):
+    _fields_ = [('ki', KEYBDINPUT)]
+
+class INPUT(ctypes.Structure):
+    _fields_ = [
+        ('type', wintypes.DWORD),
+        ('ii', INPUT_I)
+    ]
 
 def send_key(vk_code):
     user32.keybd_event(vk_code, 0, 0, 0)
@@ -42,6 +65,34 @@ def show_desktop():
     user32.keybd_event(VK_D, 0, 0, 0)
     user32.keybd_event(VK_D, 0, 2, 0)
     user32.keybd_event(VK_LWIN, 0, 2, 0)
+
+def type_text_to_pc(text: str):
+    """
+    透過 Windows SendInput 原生注入 Unicode 字元直接輸入至目前焦點視窗游標處。
+    原生支援繁體中文、英數字、標點符號與換行，不覆蓋剪貼簿且不產生亂碼。
+    """
+    if not text:
+        return
+    for char in text:
+        if char == '\n':
+            user32.keybd_event(VK_RETURN, 0, 0, 0)
+            user32.keybd_event(VK_RETURN, 0, 2, 0)
+            continue
+        code = ord(char)
+        if code > 0xFFFF:
+            # UTF-16 surrogate pairs for Emojis
+            lead = 0xD800 + ((code - 0x10000) >> 10)
+            trail = 0xDC00 + ((code - 0x10000) & 0x3FF)
+            for c_code in (lead, trail):
+                inp_down = INPUT(type=1, ii=INPUT_I(ki=KEYBDINPUT(wVk=0, wScan=c_code, dwFlags=KEYEVENTF_UNICODE, time=0, dwExtraInfo=None)))
+                inp_up = INPUT(type=1, ii=INPUT_I(ki=KEYBDINPUT(wVk=0, wScan=c_code, dwFlags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, time=0, dwExtraInfo=None)))
+                user32.SendInput(1, ctypes.byref(inp_down), ctypes.sizeof(INPUT))
+                user32.SendInput(1, ctypes.byref(inp_up), ctypes.sizeof(INPUT))
+        else:
+            inp_down = INPUT(type=1, ii=INPUT_I(ki=KEYBDINPUT(wVk=0, wScan=code, dwFlags=KEYEVENTF_UNICODE, time=0, dwExtraInfo=None)))
+            inp_up = INPUT(type=1, ii=INPUT_I(ki=KEYBDINPUT(wVk=0, wScan=code, dwFlags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, time=0, dwExtraInfo=None)))
+            user32.SendInput(1, ctypes.byref(inp_down), ctypes.sizeof(INPUT))
+            user32.SendInput(1, ctypes.byref(inp_up), ctypes.sizeof(INPUT))
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(CURRENT_DIR, "static")
@@ -427,6 +478,7 @@ AI_SYSTEM_INSTRUCTION = """
    - INTRODUCE_CAPABILITIES (當詢問你能做什麼/有什麼功能時，請熱情精簡地介紹手電筒、心跳/步數/電量、計時器、鬧鐘與電腦遙控)
    
    【Windows 電腦遠端遙控】
+   - TYPE_TEXT (在電腦當前游標處打字/輸入文字。當使用者要求「打字」、「輸入」、「在電腦打...」或要求文字鍵入時使用，需附帶 action_params: {"text": "要打在電腦上的純文字內容"})
    - MUTE_TOGGLE (電腦靜音 / 取消靜音)
    - VOLUME_UP (電腦音量加大)
    - VOLUME_DOWN (電腦音量降低)
@@ -442,6 +494,7 @@ AI_SYSTEM_INSTRUCTION = """
 
 3. 給予繁體中文回答 (reply)。
    - 語氣自然、親切、口語化，適合在智慧手錶小螢幕閱讀與手錶揚聲器語音朗讀（繁體中文，約 20~45 個字，重點清晰）。
+   - 如果是打字指令 (TYPE_TEXT)，回答例如：「已為您輸入文字！」
    - 如果是電腦指令，回答例如：「已為您靜音電腦」、「已加大音量」。
    - 如果是手錶指令，回答例如：「已為您打開手電筒」、「已開始倒數計時」。
    - 如果是資料查詢，直接回答精確重點。
@@ -455,11 +508,23 @@ AI_SYSTEM_INSTRUCTION = """
 }
 """
 
-def execute_ai_action(action_code: str):
+def execute_ai_action(action_code: str, action_params: dict = None, transcript: str = ""):
     if not action_code or action_code == "NONE":
         return None
     code = action_code.strip().upper()
-    if code in ["MUTE_TOGGLE", "MUTE"]:
+    if code == "TYPE_TEXT":
+        text_to_type = ""
+        if action_params and isinstance(action_params, dict):
+            text_to_type = str(action_params.get("text", "")).strip()
+        if not text_to_type and transcript:
+            text_to_type = transcript.strip()
+            for prefix in ["打字：", "打字:", "打字 ", "輸入：", "輸入:", "輸入 ", "打出：", "打出:"]:
+                if text_to_type.startswith(prefix):
+                    text_to_type = text_to_type[len(prefix):].strip()
+                    break
+        type_text_to_pc(text_to_type)
+        return f"打字輸入: {text_to_type[:30]}"
+    elif code in ["MUTE_TOGGLE", "MUTE"]:
         return execute_action("SYSTEM_VOLUME", "MUTE_TOGGLE")
     elif code in ["VOLUME_UP", "VOL_UP"]:
         return execute_action("SYSTEM_VOLUME", "VOLUME_UP")
@@ -582,6 +647,7 @@ def call_gemini_api(parts: list, api_key: str, model: str = "gemini-3.5-flash-li
                     return {
                         "transcript": str(parsed.get("transcript", "")),
                         "action": str(parsed.get("action", "NONE")),
+                        "action_params": parsed.get("action_params", {}),
                         "reply": str(parsed.get("reply", ""))
                     }
             except Exception:
@@ -638,8 +704,27 @@ async def save_ai_config(request: Request):
             
     return {"status": "OK"}
 
+DICTATION_SYSTEM_INSTRUCTION = """
+你是一個專為智慧手錶設計的極速語音輸入聽寫引擎 (WristHub Voice Dictation)。
+使用者說了一段要直接打入電腦游標處的文字。
+請完成以下任務：
+1. 完整精確辨識使用者說的話 (transcript)，並加上適當的標點符號。
+2. 固定將 action 設為 "TYPE_TEXT"，並將 action_params 設為 {"text": transcript}。
+3. reply 固定回答 "已在電腦輸入文字！"。
+
+請務必嚴格輸出符合以下結構的 JSON：
+{
+  "transcript": "辨識後的文字",
+  "action": "TYPE_TEXT",
+  "action_params": {
+    "text": "辨識後的文字"
+  },
+  "reply": "已在電腦輸入文字！"
+}
+"""
+
 @app.post("/api/ai/voice")
-async def process_ai_voice(file: UploadFile = File(...)):
+async def process_ai_voice(file: UploadFile = File(...), dictation: bool = False):
     cfg = load_config()
     api_key = (cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")).strip()
     model = cfg.get("gemini_model", "gemini-3.5-flash-lite")
@@ -652,6 +737,7 @@ async def process_ai_voice(file: UploadFile = File(...)):
             "transcript": "(尚未設定金鑰)",
             "reply": msg,
             "action": "NONE",
+            "action_params": {},
             "action_result": None
         })
         
@@ -661,9 +747,11 @@ async def process_ai_voice(file: UploadFile = File(...)):
         if not mime_type or mime_type == "application/octet-stream":
             mime_type = "audio/mp4"
             
-        await broadcast_log("AI", f"接收到手錶語音音訊 ({len(audio_bytes)} bytes)，正在請求 Gemini ({model}) 解析...")
+        mode_label = "【聽寫模式】" if dictation else ""
+        await broadcast_log("AI", f"接收到手錶語音音訊 ({len(audio_bytes)} bytes) {mode_label}，正在請求 Gemini ({model}) 解析...")
         
         b64_audio = base64.b64encode(audio_bytes).decode("utf-8")
+        system_prompt = DICTATION_SYSTEM_INSTRUCTION if dictation else AI_SYSTEM_INSTRUCTION
         parts = [
             {
                 "inline_data": {
@@ -672,7 +760,7 @@ async def process_ai_voice(file: UploadFile = File(...)):
                 }
             },
             {
-                "text": AI_SYSTEM_INSTRUCTION
+                "text": system_prompt
             }
         ]
         
@@ -696,7 +784,7 @@ async def process_ai_voice(file: UploadFile = File(...)):
                 "action_result": None
             })
             
-        action_result = execute_ai_action(action)
+        action_result = execute_ai_action(action, action_params, transcript)
         
         await broadcast_log("AI", f"🗣️ [{transcript}] -> 🤖 {reply} (動作: {action_result or action}, 耗時 {elapsed_ms:.0f}ms)")
         
@@ -769,8 +857,9 @@ async def process_ai_text(request: Request):
         ai_res = call_gemini_api(parts, api_key, model)
         
         action = ai_res.get("action", "NONE")
-        action_result = execute_ai_action(action)
+        action_params = ai_res.get("action_params", {})
         transcript = ai_res.get("transcript") or prompt
+        action_result = execute_ai_action(action, action_params, transcript)
         reply = ai_res.get("reply", "")
         
         if ai_res.get("error"):
@@ -903,6 +992,10 @@ async def watch_endpoint(websocket: WebSocket):
                     await broadcast_log("BATTERY", f"手錶電量上報: {level}% ⚡")
                 elif action == "BG_DOWNLOAD_SUCCESS":
                     await broadcast_log("WATCHFACE", "手錶已成功透過協程完成自訂背景下載並存入本機儲存空間！")
+                elif action == "TYPE_TEXT":
+                    text_to_type = data.get("text", "")
+                    type_text_to_pc(text_to_type)
+                    await broadcast_log("TYPE", f"⌨️ 手錶無線打字: {text_to_type[:40]}")
                 else:
                     res = execute_action("SYSTEM_VOLUME", action)
                     await broadcast_log("CLICK", f"手錶傳統指令: {action} -> {res}")

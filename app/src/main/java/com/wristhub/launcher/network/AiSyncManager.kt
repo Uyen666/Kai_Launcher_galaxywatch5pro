@@ -64,6 +64,7 @@ $sensorContext
    - INTRODUCE_CAPABILITIES (當詢問你能做什麼/有什麼功能時，請熱情精簡地介紹手電筒、心跳/步數/電量、計時器、鬧鐘與電腦遙控)
    
    【Windows 電腦遠端遙控 (僅在電腦連線狀態為「已連線」時可用)】
+   - TYPE_TEXT (在電腦當前游標處打字/輸入文字。當使用者要求「打字」、「輸入」、「在電腦打...」或要求文字鍵入時使用，需附帶 action_params: {"text": "要打在電腦上的純文字內容"})
    - MUTE_TOGGLE (電腦靜音 / 取消靜音)
    - VOLUME_UP (電腦音量加大)
    - VOLUME_DOWN (電腦音量降低)
@@ -130,6 +131,7 @@ $sensorContext
     fun uploadAudio(
         context: Context,
         audioFile: File,
+        isDictation: Boolean = false,
         onSuccess: (AiConversation) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -140,26 +142,27 @@ $sensorContext
             val isPcOnline = PcWebSocketManager.isConnected.value
 
             if (isPcOnline) {
-                Log.d(TAG, "PC 在線，優先走電腦端處理...")
-                val pcSuccess = uploadAudioToPc(audioFile, onSuccess)
+                Log.d(TAG, "PC 在線，優先走電腦端處理 (isDictation=$isDictation)...")
+                val pcSuccess = uploadAudioToPc(audioFile, isDictation, onSuccess)
                 if (!pcSuccess) {
                     Log.w(TAG, "電腦端處理失敗，自動無縫降級至 HTTPS 直連 Gemini...")
-                    callDirectGeminiApi(context, audioFile, onSuccess, onError)
+                    callDirectGeminiApi(context, audioFile, isDictation, onSuccess, onError)
                 }
             } else {
                 Log.d(TAG, "電腦離線（隨身/外出模式），直接走 HTTPS 連線 Google Gemini...")
-                callDirectGeminiApi(context, audioFile, onSuccess, onError)
+                callDirectGeminiApi(context, audioFile, isDictation, onSuccess, onError)
             }
         }
     }
 
     private suspend fun uploadAudioToPc(
         audioFile: File,
+        isDictation: Boolean,
         onSuccess: (AiConversation) -> Unit
     ): Boolean {
         return try {
             val ip = PcWebSocketManager.currentPcIp
-            val url = "http://$ip:8765/api/ai/voice"
+            val url = "http://$ip:8765/api/ai/voice" + if (isDictation) "?dictation=true" else ""
             Log.d(TAG, "Uploading audio to PC: $url (${audioFile.length()} bytes)")
 
             val mime = if (audioFile.name.endsWith(".wav", ignoreCase = true)) "audio/wav" else "audio/mp4"
@@ -225,9 +228,29 @@ $sensorContext
         }
     }
 
+    private val DICTATION_SYSTEM_INSTRUCTION = """
+你是一個專為智慧手錶設計的極速語音輸入聽寫引擎 (WristHub Voice Dictation)。
+使用者說了一段要直接打入電腦游標處的文字。
+請完成以下任務：
+1. 完整精確辨識使用者說的話 (transcript)，並加上適當的標點符號。
+2. 固定將 action 設為 "TYPE_TEXT"，並將 action_params 設為 {"text": transcript}。
+3. reply 固定回答 "已在電腦輸入文字！"。
+
+請務必嚴格輸出符合以下結構的 JSON：
+{
+  "transcript": "辨識後的文字",
+  "action": "TYPE_TEXT",
+  "action_params": {
+    "text": "辨識後的文字"
+  },
+  "reply": "已在電腦輸入文字！"
+}
+""".trimIndent()
+
     private suspend fun callDirectGeminiApi(
         context: Context,
         audioFile: File,
+        isDictation: Boolean = false,
         onSuccess: (AiConversation) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -255,7 +278,7 @@ $sensorContext
             val b64Audio = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
             val mimeType = if (audioFile.name.endsWith(".wav", ignoreCase = true)) "audio/wav" else "audio/mp4"
 
-            Log.d(TAG, "Direct Gemini: sending ${audioBytes.size} bytes (mime: $mimeType, b64: ${b64Audio.length}) to $model...")
+            Log.d(TAG, "Direct Gemini: sending ${audioBytes.size} bytes (mime: $mimeType, b64: ${b64Audio.length}, isDictation=$isDictation) to $model...")
 
             val payloadJson = JSONObject().apply {
                 val contentsArray = JSONArray().apply {
@@ -268,7 +291,7 @@ $sensorContext
                                 })
                             })
                             put(JSONObject().apply {
-                                put("text", getSystemInstruction())
+                                put("text", if (isDictation) DICTATION_SYSTEM_INSTRUCTION else getSystemInstruction())
                             })
                         }
                         put("parts", partsArray)
@@ -347,14 +370,17 @@ $sensorContext
                         val isPcAction = action in listOf(
                             "MUTE_TOGGLE", "VOLUME_UP", "VOLUME_DOWN", "PLAY_PAUSE",
                             "NEXT_TRACK", "PREV_TRACK", "LOCK_PC", "SHOW_DESKTOP",
-                            "OPEN_NOTEPAD", "OPEN_CALC"
+                            "OPEN_NOTEPAD", "OPEN_CALC", "TYPE_TEXT"
                         )
                         if (isPcAction && !PcWebSocketManager.isConnected.value) {
                             Log.w(TAG, "Gemini returned PC action $action while PC is offline! Overriding...")
                             action = "NONE"
                             if (!reply.contains("未連線") && !reply.contains("離線")) {
-                                reply = "目前手錶尚未連線到電腦喔，無法執行電腦操作！"
+                                reply = "目前手錶尚未連線到電腦喔，無法執行打字或電腦操作！"
                             }
+                        } else if (action == "TYPE_TEXT" && PcWebSocketManager.isConnected.value) {
+                            val textToType = (actionParams["text"] as? String)?.trim() ?: transcript
+                            PcWebSocketManager.sendCommand("TYPE_TEXT", mapOf("text" to textToType))
                         }
 
                         // 立即調用手錶本機硬體與系統控制器（硬體異常不干擾語音對話回傳）

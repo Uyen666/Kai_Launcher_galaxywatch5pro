@@ -45,6 +45,7 @@ object WakeAssistantManager {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var recordingJob: Job? = null
     private var autoDismissJob: Job? = null
+    private var isDictationSession = false
 
     private val _uiState = MutableStateFlow(AssistantUiState.IDLE)
     val uiState: StateFlow<AssistantUiState> = _uiState.asStateFlow()
@@ -103,6 +104,7 @@ object WakeAssistantManager {
         // 僅在完全 IDLE 狀態下開啟抬腕偵測
         if (_uiState.value != AssistantUiState.IDLE) return
 
+        isDictationSession = false
         startListeningSession(isManual = false)
     }
 
@@ -114,6 +116,21 @@ object WakeAssistantManager {
         if (ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             return
         }
+        isDictationSession = false
+        startListeningSession(isManual = true)
+    }
+
+    /**
+     * 觸發電腦語音打字聽寫模式：
+     * 所講內容直接轉為純文字並輸入至電腦游標處
+     */
+    fun startDictationListening() {
+        val ctx = appContext ?: return
+        if (ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+        isDictationSession = true
+        vibrate(durationMs = 30, amplitude = 200)
         startListeningSession(isManual = true)
     }
 
@@ -266,17 +283,26 @@ object WakeAssistantManager {
         val wavFile = File(ctx.cacheDir, "gemini_prompt_${System.currentTimeMillis()}.wav")
         WavUtils.pcmToWavFile(pcmData, wavFile, sampleRate = SAMPLE_RATE)
 
+        val dictationModeActive = isDictationSession
+        isDictationSession = false
+
         AiSyncManager.uploadAudio(
             context = ctx,
             audioFile = wavFile,
+            isDictation = dictationModeActive,
             onSuccess = { conv ->
                 _currentTranscript.value = conv.userText
                 _currentReply.value = conv.aiReply
                 _currentAction.value = conv.action
                 _uiState.value = AssistantUiState.REPLY_SHOWING
 
-                // 揚聲器 TTS 朗讀
-                WatchTtsManager.getInstance(ctx).speak(conv.aiReply)
+                // 揚聲器 TTS 朗讀與震動回饋
+                if (conv.action == "TYPE_TEXT") {
+                    vibrate(durationMs = 45, amplitude = 220)
+                    WatchTtsManager.getInstance(ctx).speak("已輸入電腦")
+                } else {
+                    WatchTtsManager.getInstance(ctx).speak(conv.aiReply)
+                }
 
                 scheduleAutoDismiss()
             },

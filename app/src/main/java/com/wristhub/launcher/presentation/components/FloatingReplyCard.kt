@@ -129,17 +129,18 @@ fun FloatingReplyCard(
 
                     if (!action.isNullOrBlank() && action != "NONE") {
                         Spacer(modifier = Modifier.height(6.dp))
+                        val isTypeAction = action == "TYPE_TEXT"
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0x3334A853))
+                                .background(if (isTypeAction) Color(0x3300E5FF) else Color(0x3334A853))
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "✓ 硬體指令已執行",
+                                text = if (isTypeAction) "⌨️ 已在電腦游標處輸入" else "✓ 硬體指令已執行",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFF81C995)
+                                color = if (isTypeAction) Color(0xFF00E5FF) else Color(0xFF81C995)
                             )
                         }
                     }
