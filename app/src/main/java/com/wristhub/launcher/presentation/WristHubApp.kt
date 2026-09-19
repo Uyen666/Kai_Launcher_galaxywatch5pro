@@ -83,6 +83,15 @@ fun WristHubApp(
             }
         }
 
+        LaunchedEffect(pagerState.currentPage) {
+            com.wristhub.launcher.manager.LauncherStateManager.setCurrentPage(pagerState.currentPage)
+        }
+
+        LaunchedEffect(drawerOffsetY.value, screenHeightPx) {
+            val isClosed = drawerOffsetY.value >= screenHeightPx - 1f
+            com.wristhub.launcher.manager.LauncherStateManager.setDrawerClosed(isClosed)
+        }
+
         // Instant snap to center WatchFace on wake reset
         LaunchedEffect(resetToWatchFaceTrigger) {
             if (resetToWatchFaceTrigger > 0L && pagerState.currentPage != 1) {
@@ -92,6 +101,8 @@ fun WristHubApp(
                 drawerOffsetY.snapTo(screenHeightPx)
                 AppDrawerManager.setDrawerOpen(false)
             }
+            com.wristhub.launcher.manager.LauncherStateManager.setCurrentPage(1)
+            com.wristhub.launcher.manager.LauncherStateManager.setDrawerClosed(true)
         }
 
         if (isAmbient) {

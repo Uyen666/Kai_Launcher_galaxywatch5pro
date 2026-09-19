@@ -121,7 +121,7 @@ object WakeAssistantManager {
      * 當螢幕熄滅或進入微光模式時：立即釋放麥克風，零後台耗電
      */
     fun onScreenSleep() {
-        if (_uiState.value == AssistantUiState.LISTENING_WAKE) {
+        if (_uiState.value == AssistantUiState.LISTENING_WAKE || _uiState.value == AssistantUiState.RECORDING_SPEECH) {
             stopAudioRecordAndReset()
         }
     }
@@ -180,7 +180,10 @@ object WakeAssistantManager {
                 _isAuraVisible.value = true
                 vibrate(35, 200)
             } else {
+                // 抬腕亮螢幕：開啟 3.5s 快速人聲偵測視窗並立即亮起光圈 + 輕微震動提示
                 _uiState.value = AssistantUiState.LISTENING_WAKE
+                _isAuraVisible.value = true
+                vibrate(25, 140)
             }
 
             val pcmStream = ByteArrayOutputStream()
