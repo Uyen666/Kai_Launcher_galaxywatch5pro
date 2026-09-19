@@ -82,7 +82,6 @@ object TaskManager {
                                 packageName = pkg,
                                 activityName = "",
                                 label = label,
-                                icon = icon,
                                 iconBitmap = null
                             )
                         )

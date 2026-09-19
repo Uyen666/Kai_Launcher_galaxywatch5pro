@@ -2,6 +2,7 @@ package com.wristhub.launcher.presentation.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -33,6 +34,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.runtime.*
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.rotary.onRotaryScrollEvent
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.CircularProgressIndicator
@@ -44,6 +56,8 @@ import androidx.wear.compose.material.items
 import androidx.wear.compose.material.rememberScalingLazyListState
 import com.wristhub.launcher.data.AppItem
 import com.wristhub.launcher.manager.AppDrawerManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Wear OS 原生弧形美學 App Drawer (應用程式抽屜)
@@ -72,16 +86,53 @@ fun AppDrawerOverlay(
         enter = slideInVertically(
             initialOffsetY = { it },
             animationSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
+                dampingRatio = 0.84f,
                 stiffness = Spring.StiffnessMediumLow
             )
-        ) + fadeIn(animationSpec = tween(150)),
+        ) + fadeIn(animationSpec = tween(180)),
         exit = slideOutVertically(
             targetOffsetY = { it },
-            animationSpec = tween(200)
+            animationSpec = tween(220, easing = FastOutSlowInEasing)
         ) + fadeOut(animationSpec = tween(150))
     ) {
         val listState = rememberScalingLazyListState()
+        val focusRequester = remember { FocusRequester() }
+        val haptic = LocalHapticFeedback.current
+        val coroutineScope = rememberCoroutineScope()
+        var lastRotaryTime by remember { mutableLongStateOf(0L) }
+        var accumulatedRotaryPixels by remember { mutableFloatStateOf(0f) }
+
+        // 開啟抽屜時主動請求 Rotary 焦點
+        LaunchedEffect(isOpen) {
+            if (isOpen) {
+                focusRequester.requestFocus()
+            }
+        }
+
+        // 當前首字母指示器開關
+        var showAlphabetIndicator by remember { mutableStateOf(false) }
+        LaunchedEffect(listState.isScrollInProgress) {
+            if (listState.isScrollInProgress) {
+                showAlphabetIndicator = true
+            } else {
+                delay(650L)
+                showAlphabetIndicator = false
+            }
+        }
+
+        val currentLetter by remember(listState, installedApps, recentApps) {
+            derivedStateOf {
+                val centerIndex = listState.centerItemIndex
+                val recentHeaderOffset = if (recentApps.isNotEmpty()) 4 else 2
+                if (centerIndex < recentHeaderOffset) {
+                    "⭐"
+                } else {
+                    val appIdx = (centerIndex - recentHeaderOffset).coerceIn(0, installedApps.lastIndex.coerceAtLeast(0))
+                    val app = installedApps.getOrNull(appIdx)
+                    app?.label?.firstOrNull()?.uppercaseChar()?.toString() ?: ""
+                }
+            }
+        }
 
         Box(
             modifier = Modifier
@@ -96,6 +147,35 @@ fun AppDrawerOverlay(
                         )
                     )
                 )
+                .focusRequester(focusRequester)
+                .focusable()
+                .onRotaryScrollEvent { event ->
+                    val now = System.currentTimeMillis()
+                    val dt = (now - lastRotaryTime).coerceAtLeast(1L)
+
+                    // 1. 角速度非線性加速：轉動越快，位移倍率指數級放大（1.0x ~ 3.8x）
+                    val speedMultiplier = if (dt < 45L) {
+                        1.0f + ((50f - dt) / 8f).coerceIn(0f, 2.8f)
+                    } else {
+                        1.0f
+                    }
+
+                    val scrollAmount = event.verticalScrollPixels * speedMultiplier
+                    coroutineScope.launch {
+                        listState.scrollBy(scrollAmount)
+                    }
+
+                    // 2. 階梯微觸覺震動反饋 (Stepped Haptic Ticks)
+                    accumulatedRotaryPixels += Math.abs(scrollAmount)
+                    if (accumulatedRotaryPixels >= 26f) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        accumulatedRotaryPixels = 0f
+                    }
+
+                    lastRotaryTime = now
+                    showAlphabetIndicator = true
+                    true
+                }
                 // 支援向下拖曳滑動關閉抽屜
                 .pointerInput(Unit) {
                     detectVerticalDragGestures { _, dragAmount ->
@@ -257,6 +337,34 @@ fun AppDrawerOverlay(
                     item {
                         Spacer(modifier = Modifier.height(48.dp))
                     }
+                }
+            }
+
+            // 5. 螢幕邊緣即時首字母浮水印指示器 (Alphabet Watermark Indicator)
+            val indicatorAlpha by animateFloatAsState(
+                targetValue = if (showAlphabetIndicator && currentLetter.isNotBlank()) 1f else 0f,
+                animationSpec = tween(220),
+                label = "alphabetIndicatorAlpha"
+            )
+            if (indicatorAlpha > 0.01f) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 8.dp)
+                        .graphicsLayer { alpha = indicatorAlpha }
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xE60A101D))
+                        .border(1.5.dp, Color(0xFF00E5FF).copy(alpha = 0.8f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = currentLetter,
+                        fontSize = if (currentLetter == "⭐") 15.sp else 16.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF00E5FF),
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }

@@ -10,7 +10,6 @@ data class AppItem(
     val packageName: String,
     val activityName: String,
     val label: String,
-    val icon: Drawable? = null,
     val iconBitmap: Bitmap? = null,
     val isSystemApp: Boolean = false,
     val lastUsedTime: Long = 0L

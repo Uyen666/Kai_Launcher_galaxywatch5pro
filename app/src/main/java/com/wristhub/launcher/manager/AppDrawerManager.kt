@@ -75,6 +75,18 @@ object AppDrawerManager {
         refreshApps(context)
     }
 
+    // 圖標動態記憶體快取 (LruCache)，上限為可用 VM Heap 的 1/8（最高 12MB）
+    private val maxMemoryKb = (Runtime.getRuntime().maxMemory() / 1024).toInt()
+    private val cacheSizeKb = (maxMemoryKb / 8).coerceIn(2048, 12288)
+    private val iconLruCache = object : android.util.LruCache<String, android.graphics.Bitmap>(cacheSizeKb) {
+        override fun sizeOf(key: String, bitmap: android.graphics.Bitmap): Int {
+            return bitmap.byteCount / 1024
+        }
+    }
+
+    // 手錶圓形螢幕最佳渲染圖標尺寸（96x96 px，單張約 36.8KB，百款 App 佔用 < 4MB）
+    private const val TARGET_ICON_SIZE_PX = 96
+
     fun refreshApps(context: Context) {
         scope.launch {
             _isLoading.value = true
@@ -93,28 +105,46 @@ object AppDrawerManager {
                 if (pkgName == myPackage) continue
 
                 val label = resolveInfo.loadLabel(pm).toString()
-                val icon = try {
-                    resolveInfo.loadIcon(pm)
-                } catch (_: Exception) {
-                    null
-                }
-                val iconBitmap = try {
-                    icon?.let { d ->
-                        if (d is android.graphics.drawable.BitmapDrawable && d.bitmap != null) {
-                            d.bitmap
-                        } else {
-                            val w = if (d.intrinsicWidth > 0) d.intrinsicWidth else 64
-                            val h = if (d.intrinsicHeight > 0) d.intrinsicHeight else 64
-                            val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
-                            val canvas = android.graphics.Canvas(bmp)
-                            d.setBounds(0, 0, w, h)
-                            d.draw(canvas)
-                            bmp
-                        }
+                
+                // 檢查 LruCache 是否已有縮放快取
+                var iconBitmap = iconLruCache.get(pkgName)
+                if (iconBitmap == null || iconBitmap.isRecycled) {
+                    val rawIcon = try {
+                        resolveInfo.loadIcon(pm)
+                    } catch (_: Exception) {
+                        null
                     }
-                } catch (_: Exception) {
-                    null
+
+                    iconBitmap = try {
+                        rawIcon?.let { d ->
+                            if (d is android.graphics.drawable.BitmapDrawable && d.bitmap != null) {
+                                val src = d.bitmap
+                                if (src.width == TARGET_ICON_SIZE_PX && src.height == TARGET_ICON_SIZE_PX) {
+                                    src
+                                } else {
+                                    android.graphics.Bitmap.createScaledBitmap(src, TARGET_ICON_SIZE_PX, TARGET_ICON_SIZE_PX, true)
+                                }
+                            } else {
+                                val bmp = android.graphics.Bitmap.createBitmap(
+                                    TARGET_ICON_SIZE_PX,
+                                    TARGET_ICON_SIZE_PX,
+                                    android.graphics.Bitmap.Config.ARGB_8888
+                                )
+                                val canvas = android.graphics.Canvas(bmp)
+                                d.setBounds(0, 0, TARGET_ICON_SIZE_PX, TARGET_ICON_SIZE_PX)
+                                d.draw(canvas)
+                                bmp
+                            }
+                        }
+                    } catch (_: Exception) {
+                        null
+                    }
+
+                    if (iconBitmap != null) {
+                        iconLruCache.put(pkgName, iconBitmap)
+                    }
                 }
+
                 val isSystem = (resolveInfo.activityInfo.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
 
                 items.add(
@@ -122,7 +152,6 @@ object AppDrawerManager {
                         packageName = pkgName,
                         activityName = resolveInfo.activityInfo.name,
                         label = label,
-                        icon = icon,
                         iconBitmap = iconBitmap,
                         isSystemApp = isSystem
                     )
@@ -133,50 +162,77 @@ object AppDrawerManager {
             val sorted = items.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
             _installedApps.value = sorted
 
-            // 載入最近常用推薦 App (Top 3)
+            // 載入最近常用推薦 App (Top 3) 並執行髒數據清洗（Orphan Package Pruning）
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val savedRecentList = prefs.getString(KEY_RECENT_PACKAGES, "")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+            val validInstalledPackages = sorted.map { it.packageName }.toSet()
+            val cleanedRecentList = savedRecentList.filter { validInstalledPackages.contains(it) }
 
-            val recentMapped = savedRecentList.mapNotNull { pkg ->
+            // 若有已卸載的孤立套件殘留，立即持久化清洗
+            if (cleanedRecentList.size != savedRecentList.size) {
+                prefs.edit().putString(KEY_RECENT_PACKAGES, cleanedRecentList.joinToString(",")).apply()
+                Log.d(TAG, "Pruned orphan packages from recent list. Old count: ${savedRecentList.size}, Cleaned count: ${cleanedRecentList.size}")
+            }
+
+            val recentMapped = cleanedRecentList.mapNotNull { pkg ->
                 sorted.find { it.packageName == pkg }
             }.take(3)
 
             // 若常用不足 3 個，以系統前置 App 或默認常用遞補展示
             _recentApps.value = if (recentMapped.isNotEmpty()) recentMapped else sorted.take(3)
             _isLoading.value = false
-            Log.d(TAG, "Refreshed installed apps: ${sorted.size} apps found (self excluded).")
+            Log.d(TAG, "Refreshed installed apps: ${sorted.size} apps found (self excluded). LruCache entries: ${iconLruCache.size()}")
         }
     }
 
     fun launchApp(context: Context, appItem: AppItem) {
         try {
-            // 1. 觸發微震動回饋
-            WatchHardwareManager.vibratePattern(longArrayOf(0, 30))
+            // 1. 觸發清脆微震動回饋
+            WatchHardwareManager.vibratePattern(longArrayOf(0, 25))
 
-            // 2. 更新最近常用持久化記錄
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val currentRecents = prefs.getString(KEY_RECENT_PACKAGES, "")?.split(",")?.filter { it.isNotBlank() }?.toMutableList() ?: mutableListOf()
-            currentRecents.remove(appItem.packageName)
-            currentRecents.add(0, appItem.packageName)
-            val topSaved = currentRecents.take(5)
-            prefs.edit().putString(KEY_RECENT_PACKAGES, topSaved.joinToString(",")).apply()
+            // 2. 獲取啟動 Intent
+            val pm = context.packageManager
+            val launchIntent = pm.getLaunchIntentForPackage(appItem.packageName)
+                ?: throw android.content.ActivityNotFoundException("No launch intent found for ${appItem.packageName}")
 
-            // 立即更新 UI 常用推薦
-            _recentApps.value = topSaved.mapNotNull { pkg ->
-                _installedApps.value.find { it.packageName == pkg }
-            }.take(3)
+            // 3. 以獨立任務棧（NEW_TASK）啟動第三方 App
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            context.startActivity(launchIntent)
+            Log.d(TAG, "Launched app successfully: ${appItem.label} (${appItem.packageName})")
 
-            // 4. 以獨立任務棧（NEW_TASK）啟動第三方 App
-            val launchIntent = context.packageManager.getLaunchIntentForPackage(appItem.packageName)
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-                context.startActivity(launchIntent)
-                Log.d(TAG, "Launched app: ${appItem.label} (${appItem.packageName})")
-            } else {
-                Log.w(TAG, "No launch intent found for ${appItem.packageName}")
-            }
+            // 4. 啟動成功後持久化寫入常用紀錄
+            updateRecentPackage(context, appItem.packageName)
+        } catch (e: android.content.ActivityNotFoundException) {
+            Log.w(TAG, "Target app missing or uninstalled: ${appItem.packageName}", e)
+            // 錯誤震動警報
+            WatchHardwareManager.vibratePattern(longArrayOf(0, 40, 40, 40))
+            // 即時除名清洗髒數據
+            pruneOrphanPackage(context, appItem.packageName)
+            refreshApps(context)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch ${appItem.label}: ${e.message}", e)
         }
+    }
+
+    private fun updateRecentPackage(context: Context, packageName: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val currentRecents = prefs.getString(KEY_RECENT_PACKAGES, "")?.split(",")?.filter { it.isNotBlank() }?.toMutableList() ?: mutableListOf()
+        currentRecents.remove(packageName)
+        currentRecents.add(0, packageName)
+        val topSaved = currentRecents.take(5)
+        prefs.edit().putString(KEY_RECENT_PACKAGES, topSaved.joinToString(",")).apply()
+
+        _recentApps.value = topSaved.mapNotNull { pkg ->
+            _installedApps.value.find { it.packageName == pkg }
+        }.take(3)
+    }
+
+    private fun pruneOrphanPackage(context: Context, packageName: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val currentRecents = prefs.getString(KEY_RECENT_PACKAGES, "")?.split(",")?.filter { it.isNotBlank() }?.toMutableList() ?: mutableListOf()
+        if (currentRecents.remove(packageName)) {
+            prefs.edit().putString(KEY_RECENT_PACKAGES, currentRecents.joinToString(",")).apply()
+        }
+        _recentApps.value = _recentApps.value.filter { it.packageName != packageName }
     }
 }

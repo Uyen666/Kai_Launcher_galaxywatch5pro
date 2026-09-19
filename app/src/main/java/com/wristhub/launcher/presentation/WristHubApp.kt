@@ -33,7 +33,9 @@ import com.wristhub.launcher.presentation.components.AppDrawerOverlay
 import kotlinx.coroutines.launch
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
@@ -57,6 +59,21 @@ fun WristHubApp(
         val coroutineScope = rememberCoroutineScope()
 
         val isDrawerOpen by AppDrawerManager.isDrawerOpen.collectAsState()
+
+        // 3D 景深階層過渡（Home <-> App Drawer 絲滑縮放與背景微暗）
+        val homeScale by animateFloatAsState(
+            targetValue = if (isDrawerOpen) 0.90f else 1.0f,
+            animationSpec = spring(
+                dampingRatio = 0.85f,
+                stiffness = Spring.StiffnessMediumLow
+            ),
+            label = "homeScaleTransition"
+        )
+        val homeAlpha by animateFloatAsState(
+            targetValue = if (isDrawerOpen) 0.45f else 1.0f,
+            animationSpec = tween(durationMillis = 200),
+            label = "homeAlphaTransition"
+        )
 
         // Instant snap to center WatchFace on wake reset
         LaunchedEffect(resetToWatchFaceTrigger) {
@@ -121,7 +138,13 @@ fun WristHubApp(
             ) {
                 HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = homeScale
+                            scaleY = homeScale
+                            alpha = homeAlpha
+                        },
                     beyondViewportPageCount = 1,
                     flingBehavior = flingBehavior,
                     pageSpacing = 16.dp
@@ -158,7 +181,9 @@ fun WristHubApp(
                 // Wear OS Pager Indicator (dots at bottom)
                 HorizontalPageIndicator(
                     pageIndicatorState = pageIndicatorState,
-                    modifier = Modifier.align(Alignment.BottomCenter)
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .graphicsLayer { alpha = if (isDrawerOpen) 0f else 1f }
                 )
 
                 // Floating Timer Badge (if active)
