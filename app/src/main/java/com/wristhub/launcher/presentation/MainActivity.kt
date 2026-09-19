@@ -7,7 +7,6 @@ import android.content.IntentFilter
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -35,18 +34,16 @@ class MainActivity : ComponentActivity() {
     private var resetToWatchFaceTrigger by mutableLongStateOf(0L)
     private var lastInactiveTimestamp = 0L
 
-    // 返回防護旗標：當 Launcher 在螢幕仍為亮起活躍時暫停（如開啟第三方 App、系統設定），此旗標設為 true
-    // 當使用者關閉該 App 退回首頁時，螢幕本來就是亮的，藉此 100% 杜絕誤觸開麥
-    private var isCoveredByOtherApp = false
-
-    // 螢幕硬體點亮喚醒等待旗標：僅在 ACTION_SCREEN_ON 或 onExitAmbient 時設為 true
-    private var pendingScreenWakeTrigger = false
+    // 螢幕由暗轉亮的真實時間戳記（僅由 ACTION_SCREEN_ON 或 onExitAmbient 賦值）
+    // 用於精確判定是否為「真實抬腕/點亮螢幕喚醒」；從第三方 App 退回首頁時螢幕本為亮起，時間戳過期，100% 絕不誤觸
+    private var lastScreenOnTimestamp = 0L
 
     private var isActivityResumed = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     companion object {
         private const val AMBIENT_RESET_TIMEOUT_MS = 30_000L
+        private const val SCREEN_ON_FRESHNESS_WINDOW_MS = 1500L
     }
 
     /**
@@ -68,47 +65,35 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onHardwareScreenOn() {
-        // 若當前是被第三方應用遮蔽（在別的 App 裡休眠後抬腕），不在此觸發 Launcher 的語音喚醒
-        if (isCoveredByOtherApp) {
-            Log.d(TAG, "ACTION_SCREEN_ON: Ignored because launcher is covered by other app")
-            return
-        }
-        pendingScreenWakeTrigger = true
+        lastScreenOnTimestamp = System.currentTimeMillis()
         tryTriggerWakeAssistant()
-        // 延時重試防護：預防 onResume() 執行排程微幅落後於系統廣播
+        // 延時排程防護：若廣播抵達時 onResume 仍在排程中，150ms 後重試
         mainHandler.postDelayed({
-            if (pendingScreenWakeTrigger && isActivityResumed) {
-                tryTriggerWakeAssistant()
-            }
+            tryTriggerWakeAssistant()
         }, 150)
     }
 
     private fun onHardwareScreenOff() {
-        // 若螢幕關閉時 Launcher 位於前景，則重置遮蔽狀態
-        if (isActivityResumed) {
-            isCoveredByOtherApp = false
-        }
-        pendingScreenWakeTrigger = false
+        lastScreenOnTimestamp = 0L
         lastInactiveTimestamp = System.currentTimeMillis()
         WakeAssistantManager.onScreenSleep()
     }
 
     private fun tryTriggerWakeAssistant() {
-        if (!pendingScreenWakeTrigger) return
-        if (!isActivityResumed) return
-        if (isAmbient) return
-        if (isCoveredByOtherApp) {
-            pendingScreenWakeTrigger = false
+        if (lastScreenOnTimestamp == 0L) return
+        val elapsed = System.currentTimeMillis() - lastScreenOnTimestamp
+        if (elapsed > SCREEN_ON_FRESHNESS_WINDOW_MS) {
+            // 螢幕亮起已超過 1.5 秒（非新鮮亮屏事件，例如從別的 App 返回），不予觸發
             return
         }
+        if (!isActivityResumed) return
+        if (isAmbient) return
 
         val isEligible = LauncherStateManager.isHudWatchFaceEligible()
-        Log.d(TAG, "tryTriggerWakeAssistant: isEligible=$isEligible, isResumed=$isActivityResumed")
+        Log.d(TAG, "tryTriggerWakeAssistant: elapsed=${elapsed}ms, isEligible=$isEligible, isResumed=$isActivityResumed")
         if (isEligible) {
-            pendingScreenWakeTrigger = false
+            lastScreenOnTimestamp = 0L // 成功觸發，消費時間戳防重複
             WakeAssistantManager.onScreenInteractive()
-        } else {
-            pendingScreenWakeTrigger = false
         }
     }
 
@@ -116,7 +101,7 @@ class MainActivity : ComponentActivity() {
         override fun onEnterAmbient(ambientDetails: AmbientLifecycleObserver.AmbientDetails) {
             isAmbient = true
             lastInactiveTimestamp = System.currentTimeMillis()
-            pendingScreenWakeTrigger = false
+            lastScreenOnTimestamp = 0L
             WakeAssistantManager.onScreenSleep()
         }
 
@@ -124,19 +109,14 @@ class MainActivity : ComponentActivity() {
             isAmbient = false
             checkAndTriggerWakeReset()
             // 退出微光 AOD 模式（抬腕亮起）
-            if (!isCoveredByOtherApp) {
-                pendingScreenWakeTrigger = true
+            lastScreenOnTimestamp = System.currentTimeMillis()
+            tryTriggerWakeAssistant()
+            mainHandler.postDelayed({
                 tryTriggerWakeAssistant()
-                mainHandler.postDelayed({
-                    if (pendingScreenWakeTrigger && isActivityResumed) {
-                        tryTriggerWakeAssistant()
-                    }
-                }, 150)
-            }
+            }, 150)
         }
 
         override fun onUpdateAmbient() {
-            // Periodic update in ambient mode (called ~1/min by system RTC)
             ambientUpdateTrigger = System.currentTimeMillis()
         }
     }
@@ -212,13 +192,6 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         isActivityResumed = false
-        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-        val isInteractive = powerManager?.isInteractive ?: true
-        if (isInteractive && !isAmbient) {
-            // 螢幕仍處於亮屏與互動狀態時 Launcher 被暫停 -> 代表使用者開啟了第三方 App 或系統設定
-            isCoveredByOtherApp = true
-            Log.d(TAG, "onPause: Launcher covered by other app -> isCoveredByOtherApp = true")
-        }
         if (lastInactiveTimestamp == 0L) {
             lastInactiveTimestamp = System.currentTimeMillis()
         }
@@ -232,16 +205,8 @@ class MainActivity : ComponentActivity() {
             checkAndTriggerWakeReset()
         }
 
-        // 若是由螢幕剛點亮 (ACTION_SCREEN_ON) 產生的待處理喚醒
-        if (pendingScreenWakeTrigger) {
-            tryTriggerWakeAssistant()
-        }
-
-        // 處理完畢後，若先前曾被其他 App 遮蔽，在此消耗並重置防護旗標（退回首頁絕不誤觸）
-        if (isCoveredByOtherApp) {
-            Log.d(TAG, "onResume: Returned from other app -> isCoveredByOtherApp consumed, no wake")
-            isCoveredByOtherApp = false
-        }
+        // 若是新鮮亮屏喚醒（剛抬腕亮起），在此觸發
+        tryTriggerWakeAssistant()
     }
 
     override fun onDestroy() {
