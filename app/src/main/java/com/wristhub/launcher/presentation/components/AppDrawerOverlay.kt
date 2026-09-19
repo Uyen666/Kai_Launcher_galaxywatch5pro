@@ -1,52 +1,43 @@
 package com.wristhub.launcher.presentation.components
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.runtime.*
-import androidx.compose.foundation.focusable
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.rotary.onRotaryScrollEvent
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.wear.compose.material.Chip
-import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
@@ -60,319 +51,356 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Wear OS 原生弧形美學 App Drawer (應用程式抽屜)
- * 1. 支援由下往上滑動拉出，魚眼縮放曲線
- * 2. 頂部 3 個常用應用智慧置頂
- * 3. 嚴格過濾排除自身 Launcher
- * 4. 支援手勢向下滑動或實體返回鍵退出
+ * 1:1 垂直手勢追隨、零重組 GPU 渲染與賽博微光美學 App Drawer
+ * 1. 1:1 手指即時位移追隨（淘汰閾值分離動畫，手推多少畫面跟多少）
+ * 2. 移除所有生硬水平拉條，加入頂底黑階漸變遮罩（Vignette）
+ * 3. 賽博深空微光膠囊（Pill Capsule + 微光青邊）
+ * 4. 懸浮三點微光陣列常用推薦 + 髮絲漸變分界線
+ * 5. 數位邊框滾動（Rotary）+ 非線性加速 + 貼合圓弧 Alphabet 軌道指示器
  */
 @Composable
 fun AppDrawerOverlay(
-    isOpen: Boolean,
-    onDismiss: () -> Unit
+    drawerOffsetY: Float,
+    screenHeightPx: Float,
+    onDismiss: () -> Unit,
+    onDragDelta: (Float) -> Unit,
+    onFling: (Float) -> Unit
 ) {
     val context = LocalContext.current
     val installedApps by AppDrawerManager.installedApps.collectAsState()
     val recentApps by AppDrawerManager.recentApps.collectAsState()
     val isLoading by AppDrawerManager.isLoading.collectAsState()
 
-    // 抽屜開啟時攔截返回鍵，優先關閉抽屜
-    BackHandler(enabled = isOpen) {
+    // 抽屜未完全收合時攔截返回鍵，優先關閉抽屜
+    val isVisible = drawerOffsetY < screenHeightPx - 0.5f
+    BackHandler(enabled = isVisible) {
         onDismiss()
     }
 
-    AnimatedVisibility(
-        visible = isOpen,
-        enter = slideInVertically(
-            initialOffsetY = { it },
-            animationSpec = spring(
-                dampingRatio = 0.84f,
-                stiffness = Spring.StiffnessMediumLow
-            )
-        ) + fadeIn(animationSpec = tween(180)),
-        exit = slideOutVertically(
-            targetOffsetY = { it },
-            animationSpec = tween(220, easing = FastOutSlowInEasing)
-        ) + fadeOut(animationSpec = tween(150))
-    ) {
-        val listState = rememberScalingLazyListState()
-        val focusRequester = remember { FocusRequester() }
-        val haptic = LocalHapticFeedback.current
-        val coroutineScope = rememberCoroutineScope()
-        var lastRotaryTime by remember { mutableLongStateOf(0L) }
-        var accumulatedRotaryPixels by remember { mutableFloatStateOf(0f) }
+    val listState = rememberScalingLazyListState()
+    val focusRequester = remember { FocusRequester() }
+    val haptic = LocalHapticFeedback.current
+    val coroutineScope = rememberCoroutineScope()
+    var lastRotaryTime by remember { mutableLongStateOf(0L) }
+    var accumulatedRotaryPixels by remember { mutableFloatStateOf(0f) }
 
-        // 開啟抽屜時主動請求 Rotary 焦點
-        LaunchedEffect(isOpen) {
-            if (isOpen) {
-                focusRequester.requestFocus()
-            }
+    // 當抽屜完全升起時（offset <= 5f），主動請求 Rotary 焦點
+    LaunchedEffect(drawerOffsetY <= 5f) {
+        if (drawerOffsetY <= 5f) {
+            focusRequester.requestFocus()
         }
+    }
 
-        // 當前首字母指示器開關
-        var showAlphabetIndicator by remember { mutableStateOf(false) }
-        LaunchedEffect(listState.isScrollInProgress) {
-            if (listState.isScrollInProgress) {
-                showAlphabetIndicator = true
+    // 當前首字母指示器開關
+    var showAlphabetIndicator by remember { mutableStateOf(false) }
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress) {
+            showAlphabetIndicator = true
+        } else {
+            delay(650L)
+            showAlphabetIndicator = false
+        }
+    }
+
+    val currentLetter by remember(listState, installedApps, recentApps) {
+        derivedStateOf {
+            val centerIndex = listState.centerItemIndex
+            val recentHeaderOffset = if (recentApps.isNotEmpty()) 2 else 1
+            if (centerIndex < recentHeaderOffset) {
+                "⭐"
             } else {
-                delay(650L)
-                showAlphabetIndicator = false
+                val appIdx = (centerIndex - recentHeaderOffset).coerceIn(0, installedApps.lastIndex.coerceAtLeast(0))
+                val app = installedApps.getOrNull(appIdx)
+                app?.label?.firstOrNull()?.uppercaseChar()?.toString() ?: ""
             }
         }
+    }
 
-        val currentLetter by remember(listState, installedApps, recentApps) {
-            derivedStateOf {
-                val centerIndex = listState.centerItemIndex
-                val recentHeaderOffset = if (recentApps.isNotEmpty()) 4 else 2
-                if (centerIndex < recentHeaderOffset) {
-                    "⭐"
-                } else {
-                    val appIdx = (centerIndex - recentHeaderOffset).coerceIn(0, installedApps.lastIndex.coerceAtLeast(0))
-                    val app = installedApps.getOrNull(appIdx)
-                    app?.label?.firstOrNull()?.uppercaseChar()?.toString() ?: ""
+    // 1:1 巢狀滑動接管（清單滑至頂部繼續下拉時，無縫 1:1 接管帶動抽屜下滑）
+    val nestedScrollConnection = remember(screenHeightPx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val currentOffset = drawerOffsetY
+                if (currentOffset > 0f && currentOffset < screenHeightPx) {
+                    onDragDelta(available.y)
+                    return Offset(0f, available.y)
                 }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                // 清單頂部下拉時（available.y > 0），將剩餘位移接管給抽屜下滑
+                if (available.y > 0f) {
+                    onDragDelta(available.y)
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (drawerOffsetY > 0f) {
+                    onFling(available.y)
+                    return available
+                }
+                return Velocity.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (drawerOffsetY > 0f) {
+                    onFling(available.y)
+                    return available
+                }
+                return Velocity.Zero
             }
         }
+    }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(CircleShape)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xF5050810),
-                            Color(0xFA0B0F1A),
-                            Color(0xFF000000)
-                        )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                // 100% GPU RenderNode 位移，零 Recomposition / Layout 掉幀
+                translationY = drawerOffsetY.coerceIn(0f, screenHeightPx)
+                alpha = if (drawerOffsetY >= screenHeightPx - 0.5f) 0f else 1f
+            }
+            .clip(CircleShape)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xF8050810),
+                        Color(0xFA0A0F1A),
+                        Color(0xFF000000)
                     )
                 )
-                .focusRequester(focusRequester)
-                .focusable()
-                .onRotaryScrollEvent { event ->
-                    val now = System.currentTimeMillis()
-                    val dt = (now - lastRotaryTime).coerceAtLeast(1L)
+            )
+            .nestedScroll(nestedScrollConnection)
+            .focusRequester(focusRequester)
+            .focusable()
+            .onRotaryScrollEvent { event ->
+                val now = System.currentTimeMillis()
+                val dt = (now - lastRotaryTime).coerceAtLeast(1L)
 
-                    // 1. 角速度非線性加速：轉動越快，位移倍率指數級放大（1.0x ~ 3.8x）
-                    val speedMultiplier = if (dt < 45L) {
-                        1.0f + ((50f - dt) / 8f).coerceIn(0f, 2.8f)
-                    } else {
-                        1.0f
-                    }
-
-                    val scrollAmount = event.verticalScrollPixels * speedMultiplier
-                    coroutineScope.launch {
-                        listState.scrollBy(scrollAmount)
-                    }
-
-                    // 2. 階梯微觸覺震動反饋 (Stepped Haptic Ticks)
-                    accumulatedRotaryPixels += Math.abs(scrollAmount)
-                    if (accumulatedRotaryPixels >= 26f) {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        accumulatedRotaryPixels = 0f
-                    }
-
-                    lastRotaryTime = now
-                    showAlphabetIndicator = true
-                    true
+                // 1. 角速度非線性加速：轉動越快，位移倍率指數級放大（1.0x ~ 3.8x）
+                val speedMultiplier = if (dt < 45L) {
+                    1.0f + ((50f - dt) / 8f).coerceIn(0f, 2.8f)
+                } else {
+                    1.0f
                 }
-                // 支援向下拖曳滑動關閉抽屜
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures { _, dragAmount ->
-                        if (dragAmount > 25f) {
-                            onDismiss()
+
+                val scrollAmount = event.verticalScrollPixels * speedMultiplier
+                coroutineScope.launch {
+                    listState.scrollBy(scrollAmount)
+                }
+
+                // 2. 階梯微觸覺震動反饋 (Stepped Haptic Ticks)
+                accumulatedRotaryPixels += Math.abs(scrollAmount)
+                if (accumulatedRotaryPixels >= 26f) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    accumulatedRotaryPixels = 0f
+                }
+
+                lastRotaryTime = now
+                showAlphabetIndicator = true
+                true
+            }
+            // 支援在抽屜非滾動區域直接向下拖曳手勢
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = { onFling(0f) },
+                    onVerticalDrag = { _, dragAmount ->
+                        onDragDelta(dragAmount)
+                    }
+                )
+            }
+    ) {
+        Scaffold(
+            positionIndicator = {
+                PositionIndicator(scalingLazyListState = listState)
+            }
+        ) {
+            ScalingLazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // 1. 極簡科技感 APPS 標題徽章（徹底告別白色小橫條）
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp, bottom = 10.dp)
+                    ) {
+                        Text(
+                            text = "APPS",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 2.sp,
+                            color = Color(0xFF00E5FF)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(Color(0xFF00E5FF).copy(alpha = 0.12f))
+                                .border(0.5.dp, Color(0xFF00E5FF).copy(alpha = 0.35f), CircleShape)
+                                .padding(horizontal = 6.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "${installedApps.size}",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00E5FF)
+                            )
                         }
                     }
                 }
-        ) {
-            Scaffold(
-                positionIndicator = {
-                    PositionIndicator(scalingLazyListState = listState)
-                }
-            ) {
-                ScalingLazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // 1. 頂部收合手柄
+
+                // 2. 常用推薦分區 (精緻三點陣列 + 髮絲漸變線，不佔用大字標題)
+                if (recentApps.isNotEmpty()) {
                     item {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onDismiss() }
-                                .padding(top = 8.dp, bottom = 4.dp)
+                                .padding(bottom = 6.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp, 4.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF4A5568))
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Canvas(modifier = Modifier.size(16.dp, 8.dp)) {
-                                val w = size.width
-                                val h = size.height
-                                val path = androidx.compose.ui.graphics.Path().apply {
-                                    moveTo(w * 0.15f, h * 0.25f)
-                                    lineTo(w * 0.5f, h * 0.75f)
-                                    lineTo(w * 0.85f, h * 0.25f)
-                                }
-                                drawPath(
-                                    path = path,
-                                    color = Color(0xFF00E5FF),
-                                    style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                        width = 2.dp.toPx(),
-                                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                                        join = androidx.compose.ui.graphics.StrokeJoin.Round
-                                    )
-                                )
-                            }
-                        }
-                    }
-
-                    // 2. 標題與 App 總數徽章
-                    item {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                        ) {
-                            Text(
-                                text = "應用程式",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF00E5FF).copy(alpha = 0.2f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "${installedApps.size}",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF00E5FF)
-                                )
-                            }
-                        }
-                    }
-
-                    // 3. 常用推薦分區 (Top 3 Recent Apps)
-                    if (recentApps.isNotEmpty()) {
-                        item {
-                            Column(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
-                                ) {
-                                    Text(
-                                        text = "⭐",
-                                        fontSize = 11.sp
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "常用推薦",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color(0xFFA0AEC0)
-                                    )
-                                }
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    for (app in recentApps) {
-                                        RecentAppCircleItem(app = app) {
-                                            onDismiss()
-                                            AppDrawerManager.launchApp(context, app)
-                                        }
+                                for (app in recentApps) {
+                                    RecentAppCircleItem(app = app) {
+                                        onDismiss()
+                                        AppDrawerManager.launchApp(context, app)
                                     }
                                 }
                             }
-                        }
-
-                        item {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            // 霓虹微光漸變髮絲線 (Transparent -> Cyan 0.35 -> Transparent)
+                            Box(
+                                modifier = Modifier
+                                    .width(130.dp)
+                                    .height(0.8.dp)
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                Color(0x6600E5FF),
+                                                Color.Transparent
+                                            )
+                                        )
+                                    )
+                            )
                             Spacer(modifier = Modifier.height(6.dp))
                         }
                     }
+                }
 
-                    // 載入狀態指示
-                    if (isLoading && installedApps.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(28.dp),
-                                    indicatorColor = Color(0xFF00E5FF)
-                                )
-                            }
-                        }
-                    }
-
-                    // 4. 所有應用清單 (A~Z 排序)
-                    items(installedApps, key = { it.packageName }) { app ->
-                        AppRowChip(app = app) {
-                            onDismiss()
-                            AppDrawerManager.launchApp(context, app)
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-
-                    // 底部圓形安全間距，避免文字被圓形螢幕邊框遮擋
+                // 載入狀態指示
+                if (isLoading && installedApps.isEmpty()) {
                     item {
-                        Spacer(modifier = Modifier.height(48.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(28.dp),
+                                indicatorColor = Color(0xFF00E5FF)
+                            )
+                        }
                     }
+                }
+
+                // 3. 所有應用清單 (A~Z 排序 - 賽博深空微光膠囊卡片)
+                items(installedApps, key = { it.packageName }) { app ->
+                    AppRowChip(app = app) {
+                        onDismiss()
+                        AppDrawerManager.launchApp(context, app)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+
+                // 底部安全間距
+                item {
+                    Spacer(modifier = Modifier.height(48.dp))
                 }
             }
+        }
 
-            // 5. 螢幕邊緣即時首字母浮水印指示器 (Alphabet Watermark Indicator)
-            val indicatorAlpha by animateFloatAsState(
-                targetValue = if (showAlphabetIndicator && currentLetter.isNotBlank()) 1f else 0f,
-                animationSpec = tween(220),
-                label = "alphabetIndicatorAlpha"
-            )
-            if (indicatorAlpha > 0.01f) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 8.dp)
-                        .graphicsLayer { alpha = indicatorAlpha }
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xE60A101D))
-                        .border(1.5.dp, Color(0xFF00E5FF).copy(alpha = 0.8f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = currentLetter,
-                        fontSize = if (currentLetter == "⭐") 15.sp else 16.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color(0xFF00E5FF),
-                        textAlign = TextAlign.Center
+        // 4. 頂部純黑漸變遮罩 (Top Vignette - 項目融於頂部鈦金屬黑框)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black,
+                            Color.Black.copy(alpha = 0.65f),
+                            Color.Transparent
+                        )
                     )
-                }
+                )
+        )
+
+        // 5. 底部純黑漸變遮罩 (Bottom Vignette - 項目融於底部鈦金屬黑框)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.65f),
+                            Color.Black
+                        )
+                    )
+                )
+        )
+
+        // 6. 貼合外圈圓弧軌道之 Alphabet Indicator
+        val indicatorAlpha by animateFloatAsState(
+            targetValue = if (showAlphabetIndicator && currentLetter.isNotBlank()) 1f else 0f,
+            animationSpec = tween(200),
+            label = "alphabetIndicatorAlpha"
+        )
+        if (indicatorAlpha > 0.01f) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 6.dp)
+                    .graphicsLayer { alpha = indicatorAlpha }
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(Color(0xE6080E1A))
+                .border(1.2.dp, Color(0xFF00E5FF).copy(alpha = 0.85f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = currentLetter,
+                    fontSize = if (currentLetter == "⭐") 14.sp else 15.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFF00E5FF),
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
 }
 
 /**
- * 常用應用推薦圓形微縮按鈕
+ * 常用推薦微縮圓形按鈕（帶微光青圈）
  */
 @Composable
 private fun RecentAppCircleItem(
@@ -383,13 +411,14 @@ private fun RecentAppCircleItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clickable(onClick = onClick)
-            .padding(4.dp)
+            .padding(2.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(46.dp)
+                .size(44.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF1E2533))
+                .background(Color(0xFF0D1420))
+                .border(0.6.dp, Color(0x5500E5FF), CircleShape)
                 .padding(6.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -400,95 +429,96 @@ private fun RecentAppCircleItem(
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                        .background(Color(0xFF2D3748)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = app.label.take(1),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
+                Text(
+                    text = app.label.take(1),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
             }
         }
         Spacer(modifier = Modifier.height(3.dp))
         Text(
             text = app.label,
-            fontSize = 10.sp,
-            color = Color(0xFFE2E8F0),
+            fontSize = 9.sp,
+            color = Color(0xFFCAD1DC),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.width(48.dp),
+            modifier = Modifier.width(46.dp),
             textAlign = TextAlign.Center
         )
     }
 }
 
 /**
- * 主清單應用橫條卡片
+ * 賽博深空微光膠囊卡片 (Pill Capsule + 0.5dp 微光青邊)
  */
 @Composable
 private fun AppRowChip(
     app: AppItem,
     onClick: () -> Unit
 ) {
-    Chip(
-        onClick = onClick,
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp),
-        colors = ChipDefaults.chipColors(
-            backgroundColor = Color(0xFF161C26),
-            contentColor = Color.White
-        ),
-        shape = RoundedCornerShape(26.dp),
-        icon = {
+            .height(48.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(Color(0xCC0D131F))
+            .border(0.6.dp, Color(0x3800E5FF), RoundedCornerShape(percent = 50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // 圓形圖標井
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(34.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF0F141C)),
+                    .background(Color(0xFF070B12))
+                    .border(0.5.dp, Color(0x3300E5FF), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 if (app.iconBitmap != null) {
                     Image(
                         bitmap = app.iconBitmap.asImageBitmap(),
                         contentDescription = app.label,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 } else {
                     Text(
                         text = app.label.take(1),
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF00E5FF)
                     )
                 }
             }
-        },
-        label = {
-            Text(
-                text = app.label,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        },
-        secondaryLabel = {
-            if (app.isSystemApp) {
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "系統應用",
-                    fontSize = 9.sp,
-                    color = Color(0xFF718096)
+                    text = app.label,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFF0F6FC),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                if (app.isSystemApp) {
+                    Text(
+                        text = "SYSTEM",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.8.sp,
+                        color = Color(0xFF6E7681)
+                    )
+                }
             }
         }
-    )
+    }
 }

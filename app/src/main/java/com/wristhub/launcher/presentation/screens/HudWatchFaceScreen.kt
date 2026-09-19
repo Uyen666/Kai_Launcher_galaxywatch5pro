@@ -24,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -60,6 +61,8 @@ fun HudWatchFaceScreen(
     isAmbient: Boolean,
     ambientUpdateTrigger: Long = 0L,
     onOpenAppDrawer: (() -> Unit)? = null,
+    onVerticalDrag: ((Float) -> Unit)? = null,
+    onDragEnd: ((Float) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -264,13 +267,27 @@ fun HudWatchFaceScreen(
                 } else Modifier
             )
             .then(
-                if (!isAmbient && onOpenAppDrawer != null) {
+                if (!isAmbient && (onVerticalDrag != null || onOpenAppDrawer != null)) {
                     Modifier.pointerInput(Unit) {
-                        detectVerticalDragGestures { _, dragAmount ->
-                            if (dragAmount < -15f) {
-                                onOpenAppDrawer()
+                        val velocityTracker = VelocityTracker()
+                        detectVerticalDragGestures(
+                            onDragStart = { velocityTracker.resetTracking() },
+                            onDragEnd = {
+                                val velocityY = velocityTracker.calculateVelocity().y
+                                onDragEnd?.invoke(velocityY)
+                            },
+                            onDragCancel = {
+                                onDragEnd?.invoke(0f)
+                            },
+                            onVerticalDrag = { change, dragAmount ->
+                                velocityTracker.addPosition(change.uptimeMillis, change.position)
+                                if (onVerticalDrag != null) {
+                                    onVerticalDrag(dragAmount)
+                                } else if (dragAmount < -15f) {
+                                    onOpenAppDrawer?.invoke()
+                                }
                             }
-                        }
+                        )
                     }
                 } else Modifier
             ),
