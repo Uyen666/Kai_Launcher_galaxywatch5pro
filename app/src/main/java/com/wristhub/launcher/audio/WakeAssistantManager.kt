@@ -37,9 +37,11 @@ object WakeAssistantManager {
 
     private var appContext: Context? = null
     private val vad = VoiceActivityDetector(
-        speechStartThreshold = 1400f,
-        speechEndThreshold = 850f,
-        silenceDurationMs = 800L
+        speechStartThreshold = 1800f,
+        speechEndThreshold = 950f,
+        silenceDurationMs = 850L,
+        minVoicedFramesForStart = 3,
+        maxZcrThreshold = 0.40f
     )
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -197,10 +199,10 @@ object WakeAssistantManager {
                 _isAuraVisible.value = true
                 vibrate(35, 200)
             } else {
-                // 抬腕亮螢幕：開啟 3.5s 快速人聲偵測視窗並立即亮起光圈 + 輕微震動提示
+                // 抬腕亮螢幕：進入 3.5s 靜態人聲偵測視窗（無光圈、無震動，安靜日常看錶）
                 _uiState.value = AssistantUiState.LISTENING_WAKE
-                _isAuraVisible.value = true
-                vibrate(25, 140)
+                _isAuraVisible.value = false
+                _audioEnergy.value = 0f
             }
 
             val pcmStream = ByteArrayOutputStream()
@@ -208,6 +210,10 @@ object WakeAssistantManager {
             val byteBuf = ByteArray(CHUNK_SIZE * 2)
             val sessionStartTime = System.currentTimeMillis()
             var speechStartTime = if (isManual) sessionStartTime else 0L
+
+            // 預錄音環形緩衝區 (保留最近 160ms 音訊，避免開頭單字音被截斷)
+            val preRollBuffer = ArrayDeque<ByteArray>()
+            val maxPreRollChunks = 4
 
             try {
                 while (isActive && record.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
@@ -222,22 +228,39 @@ object WakeAssistantManager {
                     }
 
                     val vadRes = vad.processChunk(shortBuf, readCount, chunkDurationMs = (readCount * 1000L / SAMPLE_RATE))
-                    _audioEnergy.value = (vadRes.rms / 2500f).coerceIn(0f, 1f)
+                    if (_isAuraVisible.value) {
+                        _audioEnergy.value = (vadRes.rms / 2500f).coerceIn(0f, 1f)
+                    } else {
+                        _audioEnergy.value = 0f
+                    }
 
                     val now = System.currentTimeMillis()
 
                     if (_uiState.value == AssistantUiState.LISTENING_WAKE) {
+                        // 保留最近 160ms 音訊訊框
+                        val chunkCopy = byteBuf.copyOf(readCount * 2)
+                        if (preRollBuffer.size >= maxPreRollChunks) {
+                            preRollBuffer.removeFirst()
+                        }
+                        preRollBuffer.addLast(chunkCopy)
+
                         if (vadRes.isSpeechStarted) {
-                            // 3.5秒視窗內偵測到說話起點！
-                            Log.d(TAG, "Speech detected during wake window! Starting aura & recording...")
+                            // 3.5 秒靜態視窗內偵測到清晰人聲！此時才點亮彩色光圈並震動提示
+                            Log.d(TAG, "Speech detected during wake window! Starting aura & vibration...")
                             _uiState.value = AssistantUiState.RECORDING_SPEECH
                             _isAuraVisible.value = true
                             vibrate(40, 220)
                             speechStartTime = now
+
+                            // 將開口前 160ms 音訊全數灌入音訊流，保證開頭第一個字完整
+                            while (preRollBuffer.isNotEmpty()) {
+                                val pre = preRollBuffer.removeFirst()
+                                pcmStream.write(pre, 0, pre.size)
+                            }
                             pcmStream.write(byteBuf, 0, readCount * 2)
                         } else if (now - sessionStartTime >= WAKE_LISTEN_TIMEOUT_MS) {
-                            // 3.5秒逾時未說話 -> 自動釋放麥克風
-                            Log.d(TAG, "No speech in 3.5s wake window, releasing mic.")
+                            // 3.5秒逾時未說話 -> 安靜釋放麥克風，不亮光圈、不震動
+                            Log.d(TAG, "No speech in 3.5s wake window, releasing mic silently.")
                             break
                         }
                     } else if (_uiState.value == AssistantUiState.RECORDING_SPEECH) {
@@ -261,9 +284,12 @@ object WakeAssistantManager {
                 } catch (_: Exception) {}
             }
 
-            if (_uiState.value == AssistantUiState.RECORDING_SPEECH && pcmStream.size() >= SAMPLE_RATE) {
+            val recordedDurationMs = if (speechStartTime > 0L) (System.currentTimeMillis() - speechStartTime) else 0L
+            // 最短有效語音保護：若有效說話長度小於 600ms 或音訊小於 19200 bytes，視為摩擦或短暫雜音，安靜捨棄
+            if (_uiState.value == AssistantUiState.RECORDING_SPEECH && pcmStream.size() >= 19200 && recordedDurationMs >= 600L) {
                 handleCapturedSpeech(pcmStream.toByteArray())
             } else {
+                Log.d(TAG, "Audio discarded: size=${pcmStream.size()} bytes, duration=${recordedDurationMs}ms (below threshold).")
                 _isAuraVisible.value = false
                 _uiState.value = AssistantUiState.IDLE
             }
@@ -291,6 +317,13 @@ object WakeAssistantManager {
             audioFile = wavFile,
             isDictation = dictationModeActive,
             onSuccess = { conv ->
+                val transcript = conv.userText.trim()
+                if (transcript.isEmpty() || transcript == "(雜音)" || (conv.action == "NONE" && conv.aiReply.isBlank())) {
+                    Log.d(TAG, "Ignored noise/empty transcript, resetting to IDLE.")
+                    _uiState.value = AssistantUiState.IDLE
+                    return@uploadAudio
+                }
+
                 _currentTranscript.value = conv.userText
                 _currentReply.value = conv.aiReply
                 _currentAction.value = conv.action

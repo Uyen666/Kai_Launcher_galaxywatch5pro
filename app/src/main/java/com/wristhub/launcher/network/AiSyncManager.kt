@@ -96,6 +96,14 @@ $sensorContext
      * action 必須設為 "NONE"（絕不能回傳電腦操作代碼）
      * reply 必須清楚告知手錶未連線電腦，例如：「目前手錶未連線到電腦喔，無法執行電腦操作！」（嚴禁回答已調整完成）
    
+   【雜音與非語音過濾守則 (極重要)】
+   - 若音訊僅為環境噪音、衣服摩擦、抓頭髮聲、麥克風刮擦、碰撞聲、咳嗽、呼吸聲或無清晰語音指令：
+     * 切勿猜測或強行腦補指令（嚴禁將摩擦雜音誤判為開手電筒、開應用程式或打字）！
+     * transcript 請固定填寫 ""（空字串）
+     * action 請固定填寫 "NONE"
+     * action_params 請固定填寫 {}
+     * reply 請固定填寫 ""（空字串）
+    
    【回覆語氣】
    - 給予繁體中文回覆 (reply)。
    - 語氣自然、親切、口語化，適合手錶小螢幕閱讀與手錶揚聲器朗讀（繁體中文，約 20~45 個字，重點清晰）。
@@ -192,10 +200,21 @@ $sensorContext
                 if (json.optString("status") == "ERROR") {
                     return false
                 }
-                val transcript = json.optString("transcript", "語音指令")
-                val reply = json.optString("reply", "處理完成")
-                val action = json.optString("action", "NONE")
+                val transcript = json.optString("transcript", "").trim()
+                val reply = json.optString("reply", "").trim()
+                val action = json.optString("action", "NONE").trim()
                 val actionResult = if (json.has("action_result") && !json.isNull("action_result")) json.getString("action_result") else null
+
+                // 雜音過濾防禦：若為空字串或雜音且動作為 NONE，靜默結束
+                if (transcript.isEmpty() || transcript == "(雜音)") {
+                    if (action == "NONE") {
+                        withContext(Dispatchers.Main) {
+                            _isProcessing.value = false
+                            onSuccess(AiConversation(userText = "", aiReply = "", action = "NONE"))
+                        }
+                        return true
+                    }
+                }
 
                 val actionParams = mutableMapOf<String, Any>()
                 val paramsObj = json.optJSONObject("action_params")
@@ -207,9 +226,11 @@ $sensorContext
                     }
                 }
 
-                // 立即調用手錶本機硬體與系統控制器
-                withContext(Dispatchers.Main) {
-                    WatchHardwareManager.executeAction(action, actionParams)
+                // 僅在有具體操作時調用硬體控制器
+                if (action != "NONE") {
+                    withContext(Dispatchers.Main) {
+                        WatchHardwareManager.executeAction(action, actionParams)
+                    }
                 }
 
                 val conversation = AiConversation(
@@ -350,16 +371,16 @@ $sensorContext
                         if (cleanText.endsWith("```")) cleanText = cleanText.removeSuffix("```")
                         cleanText = cleanText.trim()
 
-                        var transcript = "語音提問"
-                        var reply = "抱歉，目前無法理解這段內容。"
+                        var transcript = ""
+                        var reply = ""
                         var action = "NONE"
                         val actionParams = mutableMapOf<String, Any>()
 
                         try {
                             val parsed = JSONObject(cleanText)
-                            transcript = parsed.optString("transcript", "語音提問")
-                            reply = parsed.optString("reply", "處理完成")
-                            action = parsed.optString("action", "NONE")
+                            transcript = parsed.optString("transcript", "").trim()
+                            reply = parsed.optString("reply", "").trim()
+                            action = parsed.optString("action", "NONE").trim()
 
                             val paramsObj = parsed.optJSONObject("action_params")
                             if (paramsObj != null) {
@@ -371,6 +392,18 @@ $sensorContext
                             }
                         } catch (_: Exception) {
                             reply = cleanText.ifEmpty { reply }
+                        }
+
+                        // 雜音過濾防禦：若識別文字為空或標示為雜音，且無具體操作，則安靜結束
+                        if (transcript.isEmpty() || transcript == "(雜音)") {
+                            if (action == "NONE") {
+                                Log.d(TAG, "Direct Gemini: audio identified as noise/empty, quietly finishing.")
+                                withContext(Dispatchers.Main) {
+                                    _isProcessing.value = false
+                                    onSuccess(AiConversation(userText = "", aiReply = "", action = "NONE"))
+                                }
+                                return
+                            }
                         }
 
                         // 雙重防禦：若為電腦指令但手錶處於離線狀態，攔截錯誤宣告
@@ -390,13 +423,15 @@ $sensorContext
                             PcWebSocketManager.sendCommand("TYPE_TEXT", mapOf("text" to textToType))
                         }
 
-                        // 立即調用手錶本機硬體與系統控制器（硬體異常不干擾語音對話回傳）
-                        try {
-                            withContext(Dispatchers.Main) {
-                                WatchHardwareManager.executeAction(action, actionParams)
+                        // 立即調用手錶本機硬體與系統控制器（僅在有具體操作時執行）
+                        if (action != "NONE") {
+                            try {
+                                withContext(Dispatchers.Main) {
+                                    WatchHardwareManager.executeAction(action, actionParams)
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Action execution error: ${e.message}", e)
                             }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Action execution error: ${e.message}", e)
                         }
 
                         val actionResult = if (action != "NONE") "（本機執行完成）" else null

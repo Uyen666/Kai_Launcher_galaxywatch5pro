@@ -493,7 +493,13 @@ AI_SYSTEM_INSTRUCTION = """
    - OPEN_NOTEPAD (打開記事本)
    - OPEN_CALC (打開計算機)
    
-   - NONE (一般常識問答、天氣、算術、閒聊，不需要硬體操作)
+   【雜音與非語音過濾守則 (極重要)】
+   - 若音訊僅為環境噪音、衣服摩擦、抓頭髮聲、麥克風刮擦、碰撞聲、咳嗽、呼吸聲或無清晰語音指令：
+     * 切勿猜測或強行腦補指令（嚴禁將摩擦雜音誤判為開手電筒、開應用程式或打字）！
+     * transcript 請固定填寫 ""（空字串）
+     * action 請固定填寫 "NONE"
+     * action_params 請固定填寫 {}
+     * reply 請固定填寫 ""（空字串）
 
 3. 給予繁體中文回答 (reply)。
    - 語氣自然、親切、口語化，適合在智慧手錶小螢幕閱讀與手錶揚聲器語音朗讀（繁體中文，約 20~45 個字，重點清晰）。
@@ -772,10 +778,23 @@ async def process_ai_voice(file: UploadFile = File(...), dictation: bool = False
         ai_res = call_gemini_api(parts, api_key, model)
         elapsed_ms = (datetime.datetime.now() - t0).total_seconds() * 1000
         
-        transcript = ai_res.get("transcript", "")
-        action = ai_res.get("action", "NONE")
-        action_params = ai_res.get("action_params", {})
-        reply = ai_res.get("reply", "")
+        transcript = (ai_res.get("transcript") or "").strip()
+        action = (ai_res.get("action") or "NONE").strip()
+        action_params = ai_res.get("action_params") or {}
+        reply = (ai_res.get("reply") or "").strip()
+
+        # 雜音防禦：若識別結果為空字串或雜音且動作為 NONE，靜默結束，不發送卡片亦不報錯
+        if not transcript or transcript == "(雜音)":
+            if action == "NONE":
+                await broadcast_log("AI", f"🤫 偵測到環境摩擦雜音/非語音，已安靜過濾 (耗時 {elapsed_ms:.0f}ms)")
+                return {
+                    "status": "SUCCESS",
+                    "transcript": "",
+                    "reply": "",
+                    "action": "NONE",
+                    "action_params": {},
+                    "action_result": None
+                }
         
         if ai_res.get("error"):
             await broadcast_log("AI", f"❌ 手錶語音 Gemini 失敗: {reply}")

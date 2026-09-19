@@ -10,23 +10,24 @@ object OfflineIntentMatcher {
 
     fun match(text: String): AiConversation? {
         val trimmed = text.trim()
-        if (trimmed.isBlank()) return null
+        if (trimmed.isBlank() || trimmed.length < 2 || trimmed == "(雜音)") return null
 
-        // 1. 手電筒控制
-        if (trimmed.contains("手電筒") || trimmed.contains("照明") || trimmed.contains("手電")) {
-            return if (trimmed.contains("關") || trimmed.contains("熄") || trimmed.contains("停")) {
-                AiConversation(
-                    userText = trimmed,
-                    aiReply = "已為您關閉手電筒。",
-                    action = "FLASHLIGHT_OFF"
-                )
-            } else {
-                AiConversation(
-                    userText = trimmed,
-                    aiReply = "已開啟全螢幕手電筒，輕觸螢幕任意處即可關閉喔！",
-                    action = "FLASHLIGHT_ON"
-                )
-            }
+        // 1. 手電筒控制（使用嚴格完整意圖正則，杜絕片語隨意匹配或雜音誤觸）
+        val isFlashlightTurnOff = trimmed.matches(Regex("^(?:請?(?:關閉|關掉|關|熄滅|停用)\\s*(?:手電筒|照明燈?)|關手電筒)$"))
+        val isFlashlightTurnOn = trimmed.matches(Regex("^(?:請?(?:打開|開啟|開)\\s*(?:手電筒|照明燈?)|手電筒|開啟照明|打開照明)$"))
+
+        if (isFlashlightTurnOff) {
+            return AiConversation(
+                userText = trimmed,
+                aiReply = "已為您關閉手電筒。",
+                action = "FLASHLIGHT_OFF"
+            )
+        } else if (isFlashlightTurnOn) {
+            return AiConversation(
+                userText = trimmed,
+                aiReply = "已開啟全螢幕手電筒，輕觸螢幕任意處即可關閉喔！",
+                action = "FLASHLIGHT_ON"
+            )
         }
 
         // 2. 倒數計時器 (正則提取分鐘與秒數)
