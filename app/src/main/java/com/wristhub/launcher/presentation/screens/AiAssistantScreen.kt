@@ -49,12 +49,11 @@ fun AiAssistantScreen(
 
     // Audio & TTS Managers
     val recorder = remember { AudioRecorderManager(context) }
-    val tts = remember { WatchTtsManager(context) }
+    val tts = remember { WatchTtsManager.getInstance(context) }
 
     DisposableEffect(Unit) {
         onDispose {
             recorder.cancelRecording()
-            tts.shutdown()
         }
     }
 

@@ -9,13 +9,31 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 
-class WatchTtsManager(context: Context) : TextToSpeech.OnInitListener {
+class WatchTtsManager private constructor(context: Context) : TextToSpeech.OnInitListener {
     private val tag = "WatchTTS"
     private var tts: TextToSpeech? = TextToSpeech(context.applicationContext, this)
     private var isInitialized = false
 
     private val _isSpeaking = MutableStateFlow(false)
     val isSpeaking: StateFlow<Boolean> = _isSpeaking.asStateFlow()
+
+    companion object {
+        @Volatile
+        private var instance: WatchTtsManager? = null
+
+        fun init(context: Context) {
+            getInstance(context)
+        }
+
+        fun getInstance(context: Context): WatchTtsManager {
+            return instance ?: synchronized(this) {
+                instance ?: WatchTtsManager(context.applicationContext).also { instance = it }
+            }
+        }
+
+        val isCurrentlySpeaking: Boolean
+            get() = instance?._isSpeaking?.value == true
+    }
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {

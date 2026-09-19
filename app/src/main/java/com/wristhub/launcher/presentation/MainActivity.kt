@@ -16,20 +16,39 @@ class MainActivity : ComponentActivity() {
 
     private var isAmbient by mutableStateOf(false)
     private var ambientUpdateTrigger by mutableLongStateOf(0L)
+    private var resetToWatchFaceTrigger by mutableLongStateOf(0L)
+    private var lastInactiveTimestamp = 0L
+
+    companion object {
+        private const val AMBIENT_RESET_TIMEOUT_MS = 30_000L
+    }
 
     private val ambientCallback = object : AmbientLifecycleObserver.AmbientLifecycleCallback {
         override fun onEnterAmbient(ambientDetails: AmbientLifecycleObserver.AmbientDetails) {
             isAmbient = true
+            lastInactiveTimestamp = System.currentTimeMillis()
         }
 
         override fun onExitAmbient() {
             isAmbient = false
+            checkAndTriggerWakeReset()
         }
 
         override fun onUpdateAmbient() {
             // Periodic update in ambient mode (called ~1/min by system RTC)
             ambientUpdateTrigger = System.currentTimeMillis()
         }
+    }
+
+    private fun checkAndTriggerWakeReset() {
+        if (lastInactiveTimestamp > 0L) {
+            val elapsed = System.currentTimeMillis() - lastInactiveTimestamp
+            val isAiBusy = com.wristhub.launcher.network.AiSyncManager.isAiTaskActive()
+            if (elapsed >= AMBIENT_RESET_TIMEOUT_MS && !isAiBusy) {
+                resetToWatchFaceTrigger = System.currentTimeMillis()
+            }
+        }
+        lastInactiveTimestamp = 0L
     }
 
     private val ambientObserver by lazy {
@@ -41,6 +60,9 @@ class MainActivity : ComponentActivity() {
 
         // Initialize WebSocket & Local WatchFace Cache
         com.wristhub.launcher.network.PcWebSocketManager.init(this)
+
+        // Pre-warm TextToSpeech engine so first utterance is instant
+        com.wristhub.launcher.audio.WatchTtsManager.init(this)
 
         // Register ambient observer for natural AOD behavior
         lifecycle.addObserver(ambientObserver)
@@ -55,14 +77,24 @@ class MainActivity : ComponentActivity() {
         setContent {
             WristHubApp(
                 isAmbient = isAmbient,
-                ambientUpdateTrigger = ambientUpdateTrigger
+                ambientUpdateTrigger = ambientUpdateTrigger,
+                resetToWatchFaceTrigger = resetToWatchFaceTrigger
             )
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (lastInactiveTimestamp == 0L) {
+            lastInactiveTimestamp = System.currentTimeMillis()
         }
     }
 
     override fun onResume() {
         super.onResume()
-        // Ensure state is refreshed when waking up
+        if (!isAmbient) {
+            checkAndTriggerWakeReset()
+        }
     }
 
     override fun onNewIntent(intent: android.content.Intent) {

@@ -13,6 +13,11 @@ class AudioRecorderManager(private val context: Context) {
     var isRecording = false
         private set
 
+    companion object {
+        var isAnyRecording = false
+            private set
+    }
+
     fun startRecording(): Boolean {
         if (isRecording) return false
         try {
@@ -39,6 +44,7 @@ class AudioRecorderManager(private val context: Context) {
 
             recorder = newRecorder
             isRecording = true
+            isAnyRecording = true
             Log.d(tag, "Recording started -> ${audioFile.absolutePath}")
             return true
         } catch (e: Exception) {
@@ -55,6 +61,7 @@ class AudioRecorderManager(private val context: Context) {
             recorder?.release()
             recorder = null
             isRecording = false
+            isAnyRecording = false
 
             val file = currentFile
             if (file != null && file.exists() && file.length() > 0) {
@@ -84,6 +91,7 @@ class AudioRecorderManager(private val context: Context) {
         } catch (_: Exception) {}
         recorder = null
         isRecording = false
+        isAnyRecording = false
         currentFile?.delete()
         currentFile = null
     }

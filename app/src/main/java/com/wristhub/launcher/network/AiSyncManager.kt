@@ -3,6 +3,8 @@ package com.wristhub.launcher.network
 import android.content.Context
 import android.util.Base64
 import android.util.Log
+import com.wristhub.launcher.audio.AudioRecorderManager
+import com.wristhub.launcher.audio.WatchTtsManager
 import com.wristhub.launcher.data.AiConversation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +73,12 @@ object AiSyncManager {
 
     private val _latestReply = MutableStateFlow<AiConversation?>(null)
     val latestReply: StateFlow<AiConversation?> = _latestReply.asStateFlow()
+
+    fun isAiTaskActive(): Boolean {
+        return AudioRecorderManager.isAnyRecording ||
+               _isProcessing.value ||
+               WatchTtsManager.isCurrentlySpeaking
+    }
 
     fun uploadAudio(
         context: Context,

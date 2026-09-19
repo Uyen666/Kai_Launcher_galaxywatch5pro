@@ -34,12 +34,24 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun WristHubApp(
     isAmbient: Boolean,
-    ambientUpdateTrigger: Long = 0L
+    ambientUpdateTrigger: Long = 0L,
+    resetToWatchFaceTrigger: Long = 0L
 ) {
     WristHubTheme {
         // Automatically attempt connection to PC on app launch
         LaunchedEffect(Unit) {
             PcWebSocketManager.connect()
+        }
+
+        // Interactive 3-page horizontal pager: Left = PC Remote, Center = HUD WatchFace, Right = AI
+        val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
+        val coroutineScope = rememberCoroutineScope()
+
+        // Instant snap to center WatchFace on wake reset
+        LaunchedEffect(resetToWatchFaceTrigger) {
+            if (resetToWatchFaceTrigger > 0L && pagerState.currentPage != 1) {
+                pagerState.scrollToPage(1)
+            }
         }
 
         if (isAmbient) {
@@ -56,10 +68,6 @@ fun WristHubApp(
                 )
             }
         } else {
-            // Interactive 3-page horizontal pager: Left = PC Remote, Center = HUD WatchFace, Right = AI
-            val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
-            val coroutineScope = rememberCoroutineScope()
-
             // Safe Launcher BackHandler: If on Remote or AI, return to center WatchFace.
             // If already on center WatchFace, consume back key so the app NEVER exits!
             BackHandler(enabled = true) {
