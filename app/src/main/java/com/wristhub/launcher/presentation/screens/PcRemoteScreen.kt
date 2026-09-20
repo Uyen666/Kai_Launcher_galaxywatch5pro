@@ -1,9 +1,14 @@
 package com.wristhub.launcher.presentation.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -167,6 +172,45 @@ fun PcRemoteScreen(
                         Text(btn.icon, fontSize = 16.sp)
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 抬手問 AI 開關膠囊 (Raise-to-Ask Master Toggle)
+            val isRaiseToWakeEnabled by WakeAssistantManager.isRaiseToWakeEnabled.collectAsState()
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (isRaiseToWakeEnabled) Color(0x2800E5FF) else Color(0x22333333))
+                    .border(
+                        width = 1.dp,
+                        color = if (isRaiseToWakeEnabled) CyanNeon.copy(alpha = 0.8f) else Color(0x44888888),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        WakeAssistantManager.toggleRaiseToWake()
+                    }
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(
+                            color = if (isRaiseToWakeEnabled) CyanNeon else Color.Gray,
+                            shape = CircleShape
+                        )
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                    text = if (isRaiseToWakeEnabled) "抬手問 AI：已開啟" else "抬手問 AI：已關閉",
+                    color = if (isRaiseToWakeEnabled) CyanNeon else Color.Gray,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }

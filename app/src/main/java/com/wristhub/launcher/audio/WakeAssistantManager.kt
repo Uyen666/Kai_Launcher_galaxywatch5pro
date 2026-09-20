@@ -35,6 +35,9 @@ object WakeAssistantManager {
     private const val WAKE_LISTEN_TIMEOUT_MS = 3500L
     private const val MAX_SPEECH_DURATION_MS = 15000L
 
+    private const val PREFS_NAME = "wake_assistant_prefs"
+    private const val KEY_RAISE_TO_WAKE = "raise_to_wake_enabled"
+
     private var appContext: Context? = null
     private val vad = VoiceActivityDetector(
         speechStartThreshold = 1800f,
@@ -48,6 +51,10 @@ object WakeAssistantManager {
     private var recordingJob: Job? = null
     private var autoDismissJob: Job? = null
     private var isDictationSession = false
+
+    // 抬手開麥功能總開關（支援持久化儲存，預設為開啟）
+    private val _isRaiseToWakeEnabled = MutableStateFlow(true)
+    val isRaiseToWakeEnabled: StateFlow<Boolean> = _isRaiseToWakeEnabled.asStateFlow()
 
     private val _uiState = MutableStateFlow(AssistantUiState.IDLE)
     val uiState: StateFlow<AssistantUiState> = _uiState.asStateFlow()
@@ -69,6 +76,23 @@ object WakeAssistantManager {
 
     fun init(context: Context) {
         appContext = context.applicationContext
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        _isRaiseToWakeEnabled.value = prefs.getBoolean(KEY_RAISE_TO_WAKE, true)
+    }
+
+    /**
+     * 切換抬腕問 AI 開麥總開關
+     */
+    fun toggleRaiseToWake(): Boolean {
+        val newVal = !_isRaiseToWakeEnabled.value
+        _isRaiseToWakeEnabled.value = newVal
+        appContext?.let { ctx ->
+            ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(KEY_RAISE_TO_WAKE, newVal)
+                .apply()
+        }
+        return newVal
     }
 
     fun isRecordingOrProcessing(): Boolean {
@@ -95,9 +119,14 @@ object WakeAssistantManager {
 
     /**
      * 當手錶抬腕或點亮螢幕進入活躍狀態時觸發：
-     * 開啟 3.5 秒短暫人聲偵測視窗，超時未說話自動關閉釋放麥克風
+     * 若抬腕功能已關閉，則完全不啟動麥克風，0 耗電 0 誤觸
      */
     fun onScreenInteractive() {
+        if (!_isRaiseToWakeEnabled.value) {
+            Log.d(TAG, "onScreenInteractive: Raise to wake is disabled by user switch.")
+            return
+        }
+
         val ctx = appContext ?: return
         if (ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             return
@@ -350,15 +379,21 @@ object WakeAssistantManager {
         )
     }
 
-    private fun scheduleAutoDismiss() {
+    fun scheduleAutoDismiss(delayMs: Long = 8000L) {
         autoDismissJob?.cancel()
         autoDismissJob = scope.launch {
-            // 保留 6 秒顯示時間供使用者閱讀，隨後自動收回
-            delay(6000)
+            delay(delayMs)
             if (_uiState.value == AssistantUiState.REPLY_SHOWING) {
                 _uiState.value = AssistantUiState.IDLE
             }
         }
+    }
+
+    /**
+     * 當使用者正在滑動或展開閱讀長文時，延長自動收回計時器
+     */
+    fun extendAutoDismiss(delayMs: Long = 25000L) {
+        scheduleAutoDismiss(delayMs)
     }
 
     fun dismissReply() {

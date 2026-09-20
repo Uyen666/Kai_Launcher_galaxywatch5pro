@@ -11,6 +11,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import android.view.Display
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
@@ -18,7 +19,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.wear.ambient.AmbientLifecycleObserver
+import com.wristhub.launcher.audio.AssistantUiState
 import com.wristhub.launcher.audio.WakeAssistantManager
 import com.wristhub.launcher.audio.WatchTtsManager
 import com.wristhub.launcher.hardware.WatchHardwareManager
@@ -27,6 +32,7 @@ import com.wristhub.launcher.manager.AppDrawerManager
 import com.wristhub.launcher.manager.LauncherStateManager
 import com.wristhub.launcher.network.AiSyncManager
 import com.wristhub.launcher.network.PcWebSocketManager
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -67,6 +73,10 @@ class MainActivity : ComponentActivity() {
         }
         if (isAmbient) {
             Log.d(TAG, "tryTriggerWakeOnResume: Currently ambient -> Ignore")
+            return
+        }
+        if (!WakeAssistantManager.isRaiseToWakeEnabled.value) {
+            Log.d(TAG, "tryTriggerWakeOnResume: Raise to wake is disabled by user switch -> Ignore")
             return
         }
 
@@ -216,6 +226,38 @@ class MainActivity : ComponentActivity() {
                 // Consumed. Pager navigation is handled by BackHandler in WristHubApp.
             }
         })
+
+        // 語音助理生命週期螢幕常亮接管：
+        // 錄音中、AI思考中、回答卡片展示與TTS期間強制保持螢幕常亮，不讓 Wear OS 提早黑屏
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                WakeAssistantManager.uiState.collect { state ->
+                    when (state) {
+                        AssistantUiState.RECORDING_SPEECH,
+                        AssistantUiState.PROCESSING,
+                        AssistantUiState.REPLY_SHOWING -> {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            if (state == AssistantUiState.REPLY_SHOWING) {
+                                // 答案抵達時若手錶在等待期間進入休眠，主動喚醒點亮螢幕展示卡片
+                                try {
+                                    val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                                    @Suppress("DEPRECATION")
+                                    val wakeLock = pm?.newWakeLock(
+                                        PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                                        "wristhub:reply_showing_wake"
+                                    )
+                                    wakeLock?.acquire(3000)
+                                } catch (_: Exception) {}
+                            }
+                        }
+                        AssistantUiState.IDLE,
+                        AssistantUiState.LISTENING_WAKE -> {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        }
+                    }
+                }
+            }
+        }
 
         setContent {
             WristHubApp(
