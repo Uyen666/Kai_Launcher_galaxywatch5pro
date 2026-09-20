@@ -183,35 +183,6 @@ fun HudWatchFaceScreen(
     val effectiveHeartRate = if (liveHeartRate > 0) liveHeartRate else heartRate
     val effectiveStepCount = if (liveStepCount > 0) liveStepCount else stepCount
 
-    // Register Sensors for Steps and Heart Rate
-    DisposableEffect(wfConfig.showSteps, wfConfig.showHeartRate) {
-        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
-        val stepSensor = if (wfConfig.showSteps) sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) else null
-        val hrSensor = if (wfConfig.showHeartRate) sensorManager?.getDefaultSensor(Sensor.TYPE_HEART_RATE) else null
-
-        val listener = object : SensorEventListener {
-            override fun onSensorChanged(event: SensorEvent?) {
-                if (event == null) return
-                if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
-                    val s = event.values.firstOrNull()?.toInt() ?: 0
-                    if (s > 0) stepCount = s
-                } else if (event.sensor.type == Sensor.TYPE_HEART_RATE) {
-                    val hr = event.values.firstOrNull()?.toInt() ?: 0
-                    if (hr > 0) heartRate = hr
-                }
-            }
-
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-        }
-
-        stepSensor?.let { sensorManager?.registerListener(listener, it, SensorManager.SENSOR_DELAY_UI) }
-        hrSensor?.let { sensorManager?.registerListener(listener, it, SensorManager.SENSOR_DELAY_NORMAL) }
-
-        onDispose {
-            sensorManager?.unregisterListener(listener)
-        }
-    }
-
     // Clock update loop: 1 second in active mode
     LaunchedEffect(isAmbient) {
         if (!isAmbient) {

@@ -3,7 +3,6 @@ package com.wristhub.launcher.network
 import android.content.Context
 import android.util.Base64
 import android.util.Log
-import com.wristhub.launcher.audio.AudioRecorderManager
 import com.wristhub.launcher.audio.WatchTtsManager
 import com.wristhub.launcher.data.AiConversation
 import kotlinx.coroutines.CoroutineScope
@@ -137,8 +136,7 @@ $sensorContext
     val latestReply: StateFlow<AiConversation?> = _latestReply.asStateFlow()
 
     fun isAiTaskActive(): Boolean {
-        return AudioRecorderManager.isAnyRecording ||
-               com.wristhub.launcher.audio.WakeAssistantManager.isRecordingOrProcessing() ||
+        return com.wristhub.launcher.audio.WakeAssistantManager.isRecordingOrProcessing() ||
                _isProcessing.value ||
                WatchTtsManager.isCurrentlySpeaking
     }

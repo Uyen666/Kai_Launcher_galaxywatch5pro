@@ -8,13 +8,17 @@ import com.wristhub.launcher.data.AiConversation
  */
 object OfflineIntentMatcher {
 
+    private val REGEX_FLASHLIGHT_OFF = Regex("^(?:請?(?:關閉|關掉|關|熄滅|停用)\\s*(?:手電筒|照明燈?)|關手電筒)$")
+    private val REGEX_FLASHLIGHT_ON = Regex("^(?:請?(?:打開|開啟|開)\\s*(?:手電筒|照明燈?)|手電筒|開啟照明|打開照明)$")
+    private val REGEX_TIMER = Regex("(?:倒數|計時)\\s*(\\d+)\\s*(分|分鐘|秒|秒鐘)?")
+
     fun match(text: String): AiConversation? {
         val trimmed = text.trim()
         if (trimmed.isBlank() || trimmed.length < 2 || trimmed == "(雜音)") return null
 
-        // 1. 手電筒控制（使用嚴格完整意圖正則，杜絕片語隨意匹配或雜音誤觸）
-        val isFlashlightTurnOff = trimmed.matches(Regex("^(?:請?(?:關閉|關掉|關|熄滅|停用)\\s*(?:手電筒|照明燈?)|關手電筒)$"))
-        val isFlashlightTurnOn = trimmed.matches(Regex("^(?:請?(?:打開|開啟|開)\\s*(?:手電筒|照明燈?)|手電筒|開啟照明|打開照明)$"))
+        // 1. 手電筒控制（使用預編譯嚴格完整意圖正則，杜絕片語隨意匹配或雜音誤觸）
+        val isFlashlightTurnOff = trimmed.matches(REGEX_FLASHLIGHT_OFF)
+        val isFlashlightTurnOn = trimmed.matches(REGEX_FLASHLIGHT_ON)
 
         if (isFlashlightTurnOff) {
             return AiConversation(
@@ -31,8 +35,7 @@ object OfflineIntentMatcher {
         }
 
         // 2. 倒數計時器 (正則提取分鐘與秒數)
-        val timerRegex = Regex("(?:倒數|計時)\\s*(\\d+)\\s*(分|分鐘|秒|秒鐘)?")
-        val timerMatch = timerRegex.find(trimmed)
+        val timerMatch = REGEX_TIMER.find(trimmed)
         if (timerMatch != null) {
             val num = timerMatch.groupValues[1].toIntOrNull() ?: 3
             val unit = timerMatch.groupValues.getOrNull(2) ?: "分"

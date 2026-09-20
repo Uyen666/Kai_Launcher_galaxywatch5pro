@@ -67,17 +67,40 @@ object WatchHardwareManager {
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
 
+    private var areSensorsActive = false
+
     fun init(activity: Activity) {
         activityRef = WeakReference(activity)
         appContext = activity.applicationContext
 
-        // 初始化感測器監聽
+        // 初始化感測器監聽器引用
         sensorManager = activity.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
         hrSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_HEART_RATE)
         stepSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
 
-        hrSensor?.let { sensorManager?.registerListener(sensorEventListener, it, SensorManager.SENSOR_DELAY_NORMAL) }
-        stepSensor?.let { sensorManager?.registerListener(sensorEventListener, it, SensorManager.SENSOR_DELAY_UI) }
+        resumeSensors()
+    }
+
+    /**
+     * 進入活躍模式時啟動感測器監聽
+     */
+    fun resumeSensors() {
+        if (areSensorsActive) return
+        val sm = sensorManager ?: return
+        hrSensor?.let { sm.registerListener(sensorEventListener, it, SensorManager.SENSOR_DELAY_NORMAL) }
+        stepSensor?.let { sm.registerListener(sensorEventListener, it, SensorManager.SENSOR_DELAY_UI) }
+        areSensorsActive = true
+        Log.d(TAG, "Hardware sensors resumed for interactive mode.")
+    }
+
+    /**
+     * 進入微光/休眠模式時暫停感測器取樣，徹底釋放光學心率感測器與省電
+     */
+    fun pauseSensors() {
+        if (!areSensorsActive) return
+        sensorManager?.unregisterListener(sensorEventListener)
+        areSensorsActive = false
+        Log.d(TAG, "Hardware sensors paused for ambient/sleep power saving.")
     }
 
     // ==========================================

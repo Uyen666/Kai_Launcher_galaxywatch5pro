@@ -87,29 +87,30 @@ object WatchFaceSyncManager {
             Log.d(TAG, "Starting background download from: $url")
             try {
                 val request = Request.Builder().url(url).build()
-                val response = httpClient.newCall(request).execute()
-                if (response.isSuccessful) {
-                    val bytes = response.body?.bytes()
-                    if (bytes != null && bytes.isNotEmpty()) {
-                        val outFile = File(context.filesDir, BG_FILE_NAME)
-                        FileOutputStream(outFile).use { fos ->
-                            fos.write(bytes)
+                httpClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val bytes = response.body?.bytes()
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            val outFile = File(context.filesDir, BG_FILE_NAME)
+                            FileOutputStream(outFile).use { fos ->
+                                fos.write(bytes)
+                            }
+                            // Decode immediately into in-memory bitmap for 0ms transitions
+                            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            _cachedBgBitmap.value = bitmap
+                            _bgVersion.value = System.currentTimeMillis()
+                            Log.d(TAG, "Successfully saved and cached custom background (${bytes.size} bytes)")
+                            
+                            // Update config to hasCustomBg = true
+                            val updated = _config.value.copy(hasCustomBg = true)
+                            saveConfig(context, updated)
+                            
+                            // Report back to PC
+                            PcWebSocketManager.sendCommand("BG_DOWNLOAD_SUCCESS")
                         }
-                        // Decode immediately into in-memory bitmap for 0ms transitions
-                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        _cachedBgBitmap.value = bitmap
-                        _bgVersion.value = System.currentTimeMillis()
-                        Log.d(TAG, "Successfully saved and cached custom background (${bytes.size} bytes)")
-                        
-                        // Update config to hasCustomBg = true
-                        val updated = _config.value.copy(hasCustomBg = true)
-                        saveConfig(context, updated)
-                        
-                        // Report back to PC
-                        PcWebSocketManager.sendCommand("BG_DOWNLOAD_SUCCESS")
+                    } else {
+                        Log.w(TAG, "Download failed with code: ${response.code}")
                     }
-                } else {
-                    Log.w(TAG, "Download failed with code: ${response.code}")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error downloading background: ${e.message}")

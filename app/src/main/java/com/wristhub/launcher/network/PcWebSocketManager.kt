@@ -5,6 +5,7 @@ import android.util.Log
 import com.wristhub.launcher.data.WatchFaceConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,8 +62,17 @@ object PcWebSocketManager {
         WatchFaceSyncManager.init(context.applicationContext)
     }
 
-    fun connect(ip: String = currentPcIp) {
+    private const val INITIAL_RETRY_DELAY_MS = 3000L
+    private const val MAX_RETRY_DELAY_MS = 60000L
+    private var currentRetryDelayMs = INITIAL_RETRY_DELAY_MS
+    private var reconnectJob: Job? = null
+
+    fun connect(ip: String = currentPcIp, forceImmediate: Boolean = false) {
         currentPcIp = ip
+        if (forceImmediate) {
+            currentRetryDelayMs = INITIAL_RETRY_DELAY_MS
+            reconnectJob?.cancel()
+        }
         if (_isConnected.value) return
 
         val request = Request.Builder()
@@ -73,6 +83,7 @@ object PcWebSocketManager {
             override fun onOpen(ws: WebSocket, response: Response) {
                 Log.d(TAG, "Connected to PC: $ip")
                 _isConnected.value = true
+                currentRetryDelayMs = INITIAL_RETRY_DELAY_MS
                 sendCommand("GET_CONFIG")
             }
 
@@ -133,10 +144,13 @@ object PcWebSocketManager {
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                Log.w(TAG, "WebSocket failure: ${t.message}. Retrying in 3s...")
+                val delayMs = currentRetryDelayMs
+                currentRetryDelayMs = (currentRetryDelayMs * 2).coerceAtMost(MAX_RETRY_DELAY_MS)
+                Log.w(TAG, "WebSocket failure: ${t.message}. Retrying in ${delayMs / 1000}s (exponential backoff)...")
                 _isConnected.value = false
-                scope.launch {
-                    delay(3000L)
+                reconnectJob?.cancel()
+                reconnectJob = scope.launch {
+                    delay(delayMs)
                     connect(currentPcIp)
                 }
             }
@@ -144,6 +158,8 @@ object PcWebSocketManager {
     }
 
     fun disconnect() {
+        reconnectJob?.cancel()
+        reconnectJob = null
         webSocket?.close(1000, "User disconnect")
         webSocket = null
         _isConnected.value = false

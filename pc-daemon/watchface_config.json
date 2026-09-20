@@ -1,6 +1,6 @@
 {
   "clock_style": "ANALOG",
-  "clock_color": "#050406",
+  "clock_color": "#572e7f",
   "dim_percent": 20,
   "has_custom_bg": true,
   "hour_hand_color": "#0a0a0a",
@@ -16,7 +16,7 @@
   "show_battery_text": true,
   "battery_text_color": "#fdf7f7",
   "battery_text_offset_x": 0,
-  "battery_text_offset_y": 91,
+  "battery_text_offset_y": 87,
   "show_date": true,
   "date_color": "#E2E8F0",
   "date_font_size": 10,

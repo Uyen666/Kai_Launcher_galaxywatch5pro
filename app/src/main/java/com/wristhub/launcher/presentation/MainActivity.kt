@@ -150,10 +150,12 @@ class MainActivity : ComponentActivity() {
             wasDisplaySleeping = true
             lastInactiveTimestamp = System.currentTimeMillis()
             WakeAssistantManager.onScreenSleep()
+            WatchHardwareManager.pauseSensors()
         }
 
         override fun onExitAmbient() {
             isAmbient = false
+            WatchHardwareManager.resumeSensors()
             checkAndTriggerWakeReset()
             if (wasDisplaySleeping) {
                 tryTriggerWakeOnResume()
@@ -303,6 +305,7 @@ class MainActivity : ComponentActivity() {
             lastInactiveTimestamp = System.currentTimeMillis()
         }
         WakeAssistantManager.onScreenSleep()
+        WatchHardwareManager.pauseSensors()
     }
 
     override fun onResume() {
@@ -310,6 +313,7 @@ class MainActivity : ComponentActivity() {
         isActivityResumed = true
         if (!isAmbient) {
             checkAndTriggerWakeReset()
+            WatchHardwareManager.resumeSensors()
         }
 
         // 當 Activity 恢復前景時，若是從手錶休眠/微光狀態喚醒，直接觸發開麥
@@ -323,6 +327,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        WatchHardwareManager.pauseSensors()
         val displayManager = getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
         try {
             displayManager?.unregisterDisplayListener(displayListener)
