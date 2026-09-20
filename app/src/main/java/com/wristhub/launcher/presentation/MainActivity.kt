@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.display.DisplayManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -239,14 +240,18 @@ class MainActivity : ComponentActivity() {
                             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                             if (state == AssistantUiState.REPLY_SHOWING) {
                                 // 答案抵達時若手錶在等待期間進入休眠，主動喚醒點亮螢幕展示卡片
+                                // 使用 setTurnScreenOn + PARTIAL_WAKE_LOCK，不干擾手錶系統智慧調光 (Auto-Brightness)
                                 try {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                                        setShowWhenLocked(true)
+                                        setTurnScreenOn(true)
+                                    }
                                     val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
-                                    @Suppress("DEPRECATION")
                                     val wakeLock = pm?.newWakeLock(
-                                        PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                                        PowerManager.PARTIAL_WAKE_LOCK,
                                         "wristhub:reply_showing_wake"
                                     )
-                                    wakeLock?.acquire(3000)
+                                    wakeLock?.acquire(2000)
                                 } catch (_: Exception) {}
                             }
                         }
