@@ -53,7 +53,7 @@ fun FlashlightOverlay(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "輕觸任意處關閉",
+                    text = "Tap anywhere to turn off",
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color(0x77000000)

@@ -1,6 +1,6 @@
 # Kai Launcher for Galaxy Watch 5 Pro (WristHub) ⌚⚡
 
-[![Release](https://img.shields.io/badge/Release-v1.0.0-success.svg)](https://github.com/Uyen666/Kai_Launcher_galaxywatch5pro/releases)
+[![Release](https://img.shields.io/badge/Release-v1.0.1-success.svg)](https://github.com/Uyen666/Kai_Launcher_galaxywatch5pro/releases)
 [![Platform](https://img.shields.io/badge/Platform-Wear%20OS%204%2B%20%2F%20Android%2014%2B-blue.svg)](https://developer.android.com/wear)
 [![Device](https://img.shields.io/badge/Device-Samsung%20Galaxy%20Watch%205%20Pro-orange.svg)](https://www.samsung.com)
 [![UI](https://img.shields.io/badge/UI-Jetpack%20Compose%20for%20Wear%20OS-brightgreen.svg)](https://developer.android.com/training/wearables/compose)

@@ -96,7 +96,7 @@ fun FloatingReplyCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "說話中 • 點擊結束 ⚡",
+                        text = "Listening • Tap to stop ⚡",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White
@@ -125,7 +125,7 @@ fun FloatingReplyCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Gemini 分析中...",
+                        text = "Gemini is thinking...",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White
@@ -254,7 +254,7 @@ fun FloatingReplyCard(
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "👆 點擊看全文 / 滑動",
+                                text = "👆 Tap for full text / Scroll",
                                 fontSize = 9.5.sp,
                                 color = CyanNeon,
                                 fontWeight = FontWeight.Medium
@@ -273,7 +273,7 @@ fun FloatingReplyCard(
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = if (isTypeAction) "⌨️ 已在電腦游標處輸入" else "✓ 硬體指令已執行",
+                                text = if (isTypeAction) "⌨️ Typed at PC cursor" else "✓ Command executed",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = if (isTypeAction) Color(0xFF00E5FF) else Color(0xFF81C995)
@@ -293,7 +293,7 @@ fun FloatingReplyCard(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "✓ 閱讀完畢收回",
+                                text = "✓ Dismiss",
                                 fontSize = 10.sp,
                                 color = Color.White,
                                 fontWeight = FontWeight.Medium

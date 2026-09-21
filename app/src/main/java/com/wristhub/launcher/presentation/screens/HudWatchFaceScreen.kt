@@ -209,10 +209,10 @@ fun HudWatchFaceScreen(
     }
 
     val cal = Calendar.getInstance().apply { time = currentTime }
-    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val secFormat = remember { SimpleDateFormat("ss", Locale.getDefault()) }
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.ENGLISH) }
+    val secFormat = remember { SimpleDateFormat("ss", Locale.ENGLISH) }
     val dateFormatPattern = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.date_format)
-    val dateFormat = remember(dateFormatPattern) { SimpleDateFormat(dateFormatPattern, Locale.getDefault()) }
+    val dateFormat = remember(dateFormatPattern) { SimpleDateFormat(dateFormatPattern, Locale.ENGLISH) }
 
     Box(
         modifier = modifier
@@ -333,8 +333,7 @@ fun HudWatchFaceScreen(
                         text = if (isPcConnected) "PC" else "OFF",
                         color = if (isPcConnected) pcStatusColor else Color.Gray,
                         fontSize = (wfConfig.pcStatusSize + 3).sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -352,8 +351,7 @@ fun HudWatchFaceScreen(
                     text = dateFormat.format(currentTime).uppercase(),
                     color = if (isAmbient) Color.Gray else dateColor,
                     fontSize = wfConfig.dateFontSize.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = FontFamily.Monospace
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
@@ -370,8 +368,7 @@ fun HudWatchFaceScreen(
                     text = "⚡ $batteryPercent%",
                     color = if (isAmbient) Color.Gray else batteryTextColor,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = FontFamily.Monospace
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
@@ -385,11 +382,10 @@ fun HudWatchFaceScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "👣 ${if (effectiveStepCount > 0) String.format(Locale.getDefault(), "%,d", effectiveStepCount) else "--"}",
+                    text = "👣 ${if (effectiveStepCount > 0) String.format(Locale.ENGLISH, "%,d", effectiveStepCount) else "--"}",
                     color = if (isAmbient) Color.Gray else stepsColor,
                     fontSize = wfConfig.stepsFontSize.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = FontFamily.Monospace
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
@@ -406,8 +402,7 @@ fun HudWatchFaceScreen(
                     text = "❤️ ${if (effectiveHeartRate > 0) "$effectiveHeartRate bpm" else "--"}",
                     color = if (isAmbient) Color.Gray else heartRateColor,
                     fontSize = wfConfig.heartRateFontSize.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = FontFamily.Monospace
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
@@ -600,7 +595,6 @@ fun HudWatchFaceScreen(
                         color = if (isAmbient) Color.White else clockColor,
                         fontSize = 46.sp,
                         fontWeight = FontWeight.Black,
-                        fontFamily = FontFamily.Monospace,
                         letterSpacing = (-1).sp
                     )
                     if (!isAmbient) {
@@ -609,7 +603,6 @@ fun HudWatchFaceScreen(
                             color = GreenNeon,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
                             modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
                         )
                     }

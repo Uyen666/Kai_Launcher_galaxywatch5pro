@@ -79,8 +79,31 @@ object PcWebSocketManager {
         startUdpDiscovery()
     }
 
+    @Volatile
+    private var isAmbientMode = false
+
+    fun onEnterAmbient() {
+        isAmbientMode = true
+        stopUdpDiscovery()
+        // 休眠模式下暫停背景無效重試，避免頻繁喚醒手錶 CPU 與 Wi-Fi 晶片
+        if (!_isConnected.value) {
+            reconnectJob?.cancel()
+            reconnectJob = null
+            Log.d(TAG, "Paused reconnect loop for ambient power saving.")
+        }
+    }
+
+    fun onExitAmbient() {
+        isAmbientMode = false
+        // 抬腕亮螢幕時，若處於離線狀態則立即恢復連線檢查
+        if (!_isConnected.value && reconnectJob == null) {
+            Log.d(TAG, "Resuming reconnect on active screen wake...")
+            connect(currentPcIp)
+        }
+    }
+
     fun startUdpDiscovery() {
-        if (_isConnected.value || udpDiscoveryJob?.isActive == true) return
+        if (isAmbientMode || _isConnected.value || udpDiscoveryJob?.isActive == true) return
         udpDiscoveryJob = scope.launch(Dispatchers.IO) {
             var socket: DatagramSocket? = null
             try {
@@ -105,7 +128,8 @@ object PcWebSocketManager {
                 val probePacket = DatagramPacket(probeData, probeData.size, broadcastAddr, DISCOVERY_PORT)
 
                 var attempts = 0
-                while (!_isConnected.value && attempts < 60) {
+                // 15 秒短脈衝探測（PC 伺服器每 2 秒發送信標，15 秒足夠探測完畢），微光時立即退出省電
+                while (!isAmbientMode && !_isConnected.value && attempts < 15) {
                     attempts++
                     try {
                         socket.send(probePacket)
@@ -164,7 +188,7 @@ object PcWebSocketManager {
     }
 
     private const val INITIAL_RETRY_DELAY_MS = 3000L
-    private const val MAX_RETRY_DELAY_MS = 60000L
+    private const val MAX_RETRY_DELAY_MS = 120000L
     private var currentRetryDelayMs = INITIAL_RETRY_DELAY_MS
     private var reconnectJob: Job? = null
 
@@ -250,11 +274,15 @@ object PcWebSocketManager {
                 currentRetryDelayMs = (currentRetryDelayMs * 2).coerceAtMost(MAX_RETRY_DELAY_MS)
                 Log.w(TAG, "WebSocket failure: ${t.message}. Retrying in ${delayMs / 1000}s (exponential backoff)...")
                 _isConnected.value = false
-                startUdpDiscovery()
                 reconnectJob?.cancel()
-                reconnectJob = scope.launch {
-                    delay(delayMs)
-                    connect(currentPcIp)
+                if (!isAmbientMode) {
+                    startUdpDiscovery()
+                    reconnectJob = scope.launch {
+                        delay(delayMs)
+                        if (!isAmbientMode) {
+                            connect(currentPcIp)
+                        }
+                    }
                 }
             }
         })

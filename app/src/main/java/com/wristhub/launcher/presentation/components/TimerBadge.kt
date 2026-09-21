@@ -61,7 +61,6 @@ fun TimerBadge(
                 text = formattedTime,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
                 color = Color.White
             )
         }

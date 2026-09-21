@@ -92,7 +92,7 @@ fun PcRemoteScreen(
                             if (!isConnected) {
                                 android.widget.Toast.makeText(
                                     context,
-                                    "🔍 自動搜尋 PC 中...\n當前目標: ${PcWebSocketManager.currentPcIp}",
+                                    "🔍 Searching for PC...\nTarget: ${PcWebSocketManager.currentPcIp}",
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                                 PcWebSocketManager.startUdpDiscovery()
@@ -100,7 +100,7 @@ fun PcRemoteScreen(
                             } else {
                                 android.widget.Toast.makeText(
                                     context,
-                                    "🟢 已連線至 PC: ${PcWebSocketManager.currentPcIp}",
+                                    "🟢 Connected to PC: ${PcWebSocketManager.currentPcIp}",
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                             }
@@ -232,7 +232,7 @@ fun PcRemoteScreen(
                 )
                 Spacer(modifier = Modifier.width(5.dp))
                 Text(
-                    text = if (isRaiseToWakeEnabled) "抬手問 AI：已開啟" else "抬手問 AI：已關閉",
+                    text = if (isRaiseToWakeEnabled) "Raise-to-Ask: ON" else "Raise-to-Ask: OFF",
                     color = if (isRaiseToWakeEnabled) CyanNeon else Color.Gray,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold

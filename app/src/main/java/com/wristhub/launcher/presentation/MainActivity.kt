@@ -114,7 +114,9 @@ class MainActivity : ComponentActivity() {
             if (state == Display.STATE_DOZE || state == Display.STATE_DOZE_SUSPEND || state == Display.STATE_OFF) {
                 wasDisplaySleeping = true
                 WakeAssistantManager.onScreenSleep()
+                PcWebSocketManager.onEnterAmbient()
             } else if (state == Display.STATE_ON) {
+                PcWebSocketManager.onExitAmbient()
                 if (wasDisplaySleeping && isActivityResumed) {
                     tryTriggerWakeOnResume()
                 }
@@ -130,6 +132,7 @@ class MainActivity : ComponentActivity() {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_ON -> {
                     Log.d(TAG, "System Broadcast: ACTION_SCREEN_ON")
+                    PcWebSocketManager.onExitAmbient()
                     if (wasDisplaySleeping && isActivityResumed) {
                         tryTriggerWakeOnResume()
                     }
@@ -139,6 +142,7 @@ class MainActivity : ComponentActivity() {
                     wasDisplaySleeping = true
                     lastInactiveTimestamp = System.currentTimeMillis()
                     WakeAssistantManager.onScreenSleep()
+                    PcWebSocketManager.onEnterAmbient()
                 }
             }
         }
@@ -167,11 +171,13 @@ class MainActivity : ComponentActivity() {
             lastInactiveTimestamp = System.currentTimeMillis()
             WakeAssistantManager.onScreenSleep()
             WatchHardwareManager.pauseSensors()
+            PcWebSocketManager.onEnterAmbient()
         }
 
         override fun onExitAmbient() {
             isAmbient = false
             WatchHardwareManager.resumeSensors()
+            PcWebSocketManager.onExitAmbient()
             checkAndTriggerWakeReset()
             if (wasDisplaySleeping) {
                 tryTriggerWakeOnResume()
