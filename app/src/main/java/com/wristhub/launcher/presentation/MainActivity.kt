@@ -144,6 +144,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * 支援透過 ADB 廣播動態配置 PC 端連線 IP：
+     * adb shell am broadcast -a com.wristhub.SET_PC_IP --es ip <電腦IP>
+     */
+    private val pcIpReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.wristhub.SET_PC_IP" && context != null) {
+                val newIp = intent.getStringExtra("ip")
+                if (!newIp.isNullOrBlank()) {
+                    Log.i(TAG, "Received broadcast to update PC IP: $newIp")
+                    PcWebSocketManager.updatePcIp(context, newIp)
+                }
+            }
+        }
+    }
+
     private val ambientCallback = object : AmbientLifecycleObserver.AmbientLifecycleCallback {
         override fun onEnterAmbient(ambientDetails: AmbientLifecycleObserver.AmbientDetails) {
             isAmbient = true
@@ -219,6 +235,14 @@ class MainActivity : ComponentActivity() {
             addAction(Intent.ACTION_SCREEN_OFF)
         }
         registerReceiver(screenStateReceiver, screenFilter)
+
+        // Register dynamic PC IP configuration broadcast receiver
+        val ipFilter = IntentFilter("com.wristhub.SET_PC_IP")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(pcIpReceiver, ipFilter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(pcIpReceiver, ipFilter)
+        }
 
         // Register ambient observer for natural AOD behavior
         lifecycle.addObserver(ambientObserver)
@@ -334,6 +358,9 @@ class MainActivity : ComponentActivity() {
         } catch (_: Exception) {}
         try {
             unregisterReceiver(screenStateReceiver)
+        } catch (_: Exception) {}
+        try {
+            unregisterReceiver(pcIpReceiver)
         } catch (_: Exception) {}
     }
 

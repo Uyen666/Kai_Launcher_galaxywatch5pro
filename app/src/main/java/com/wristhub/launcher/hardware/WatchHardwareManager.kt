@@ -2,6 +2,7 @@ package com.wristhub.launcher.hardware
 
 import android.app.Activity
 import android.app.NotificationManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -79,6 +80,17 @@ object WatchHardwareManager {
         stepSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
 
         resumeSensors()
+
+        if (!isBatteryReceiverRegistered) {
+            val batteryFilter = IntentFilter().apply {
+                addAction(Intent.ACTION_BATTERY_CHANGED)
+                addAction(Intent.ACTION_POWER_CONNECTED)
+                addAction(Intent.ACTION_POWER_DISCONNECTED)
+            }
+            activity.applicationContext.registerReceiver(batteryReceiver, batteryFilter)
+            isBatteryReceiverRegistered = true
+            refreshBattery()
+        }
     }
 
     /**
@@ -270,18 +282,44 @@ object WatchHardwareManager {
         val temperatureCelsius: Float
     )
 
-    fun getBatteryInfo(): BatteryInfo {
-        val ctx = appContext ?: return BatteryInfo(100, false, 28.0f)
-        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-        val status = ctx.registerReceiver(null, filter)
-        val level = status?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-        val scale = status?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-        val percent = if (level >= 0 && scale > 0) (level * 100) / scale else 80
-        val plugged = status?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
+    private val _currentBatteryInfo = MutableStateFlow(BatteryInfo(100, false, 28.0f))
+    val currentBatteryInfo: StateFlow<BatteryInfo> = _currentBatteryInfo.asStateFlow()
+
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            intent?.let { updateBatteryFromIntent(it) }
+        }
+    }
+
+    private var isBatteryReceiverRegistered = false
+
+    private fun updateBatteryFromIntent(intent: Intent) {
+        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+        val percent = if (level >= 0 && scale > 0) (level * 100) / scale else _currentBatteryInfo.value.percent
+        val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
         val isCharging = plugged != 0
-        val rawTemp = status?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 250
-        val temp = rawTemp / 10.0f
-        return BatteryInfo(percent, isCharging, temp)
+        val rawTemp = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
+        val temp = if (rawTemp > 0) rawTemp / 10.0f else _currentBatteryInfo.value.temperatureCelsius
+
+        val updated = BatteryInfo(percent, isCharging, temp)
+        _currentBatteryInfo.value = updated
+
+        if (com.wristhub.launcher.network.PcWebSocketManager.isConnected.value) {
+            com.wristhub.launcher.network.PcWebSocketManager.sendCommand("BATTERY_UPDATE", mapOf("level" to percent))
+        }
+    }
+
+    fun refreshBattery() {
+        val ctx = appContext ?: return
+        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        val sticky = ctx.registerReceiver(null, filter)
+        sticky?.let { updateBatteryFromIntent(it) }
+    }
+
+    fun getBatteryInfo(): BatteryInfo {
+        refreshBattery()
+        return _currentBatteryInfo.value
     }
 
     // ==========================================

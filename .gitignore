@@ -52,6 +52,7 @@ google-services.json
 api_key*
 *.env
 *.env.local
+pc-daemon/config.json
 
 # ==========================================
 # OS Generated Files
@@ -70,5 +71,8 @@ Desktop.ini
 # ==========================================
 auto_deploy.ps1
 test_animated.gif
+.last_watch_ip
+.last_watch_device
+*.local.properties
 
 

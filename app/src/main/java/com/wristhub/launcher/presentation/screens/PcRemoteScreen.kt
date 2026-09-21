@@ -76,28 +76,54 @@ fun PcRemoteScreen(
                 .fillMaxSize()
                 .padding(12.dp)
         ) {
+            val context = androidx.compose.ui.platform.LocalContext.current
             // Top Row: PC Remote Title + Status Indicator + Lock Button
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.padding(bottom = 6.dp)
             ) {
-                Text(
-                    text = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.pc_remote_title),
-                    color = CyanNeon,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                // Status indicator
-                Box(
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .size(8.dp)
-                        .background(
-                            color = if (isConnected) GreenNeon else RedNeon,
-                            shape = CircleShape
-                        )
-                )
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            if (!isConnected) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "🔍 自動搜尋 PC 中...\n當前目標: ${PcWebSocketManager.currentPcIp}",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                                PcWebSocketManager.startUdpDiscovery()
+                                PcWebSocketManager.connect(forceImmediate = true)
+                            } else {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "🟢 已連線至 PC: ${PcWebSocketManager.currentPcIp}",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = androidx.compose.ui.res.stringResource(com.wristhub.launcher.R.string.pc_remote_title),
+                        color = CyanNeon,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    // Status indicator
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(
+                                color = if (isConnected) GreenNeon else RedNeon,
+                                shape = CircleShape
+                            )
+                    )
+                }
                 Spacer(modifier = Modifier.width(6.dp))
                 // Wireless Dictation Button (Voice typing to PC)
                 Button(

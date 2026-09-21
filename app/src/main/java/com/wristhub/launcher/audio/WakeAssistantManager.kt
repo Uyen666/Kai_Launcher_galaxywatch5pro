@@ -139,6 +139,45 @@ object WakeAssistantManager {
         startListeningSession(isManual = false)
     }
 
+    @Volatile
+    private var isManualStopRequested = false
+
+    /**
+     * 手動結束收音並立即開始思考：
+     * 對抗戶外雜音、風切聲導致 VAD 靜音偵測失效時的強制截斷方案
+     */
+    fun manualStopAndProcess() {
+        if (_uiState.value == AssistantUiState.RECORDING_SPEECH || _uiState.value == AssistantUiState.LISTENING_WAKE) {
+            Log.d(TAG, "Manual stop requested by user!")
+            isManualStopRequested = true
+            vibrate(durationMs = 40, amplitude = 220)
+        }
+    }
+
+    /**
+     * 全域雙擊手勢分流器：
+     * 1. 收音中 ➔ 雙擊立即結束收音並開始思考
+     * 2. 顯示回覆中 ➔ 雙擊提早關閉卡片
+     * 3. 思考中 ➔ 震動提示正在處理
+     * 4. 空閒中 ➔ 雙擊喚醒助理
+     */
+    fun handleDoubleTap() {
+        when (_uiState.value) {
+            AssistantUiState.RECORDING_SPEECH, AssistantUiState.LISTENING_WAKE -> {
+                manualStopAndProcess()
+            }
+            AssistantUiState.PROCESSING -> {
+                vibrate(durationMs = 25, amplitude = 140)
+            }
+            AssistantUiState.REPLY_SHOWING -> {
+                dismissReply()
+            }
+            AssistantUiState.IDLE -> {
+                startManualListening()
+            }
+        }
+    }
+
     /**
      * 手動點擊（如雙擊錶面）喚醒助理
      */
@@ -186,6 +225,7 @@ object WakeAssistantManager {
         recordingJob?.cancel()
         autoDismissJob?.cancel()
         vad.reset()
+        isManualStopRequested = false
 
         recordingJob = scope.launch(Dispatchers.IO) {
             val ctx = appContext ?: return@launch
@@ -265,6 +305,19 @@ object WakeAssistantManager {
 
                     val now = System.currentTimeMillis()
 
+                    if (isManualStopRequested) {
+                        Log.d(TAG, "Manual stop requested early in recording loop.")
+                        if (_uiState.value == AssistantUiState.LISTENING_WAKE) {
+                            _uiState.value = AssistantUiState.RECORDING_SPEECH
+                            while (preRollBuffer.isNotEmpty()) {
+                                val pre = preRollBuffer.removeFirst()
+                                pcmStream.write(pre, 0, pre.size)
+                            }
+                            pcmStream.write(byteBuf, 0, readCount * 2)
+                        }
+                        break
+                    }
+
                     if (_uiState.value == AssistantUiState.LISTENING_WAKE) {
                         // 保留最近 160ms 音訊訊框
                         val chunkCopy = byteBuf.copyOf(readCount * 2)
@@ -314,11 +367,14 @@ object WakeAssistantManager {
             }
 
             val recordedDurationMs = if (speechStartTime > 0L) (System.currentTimeMillis() - speechStartTime) else 0L
-            // 最短有效語音保護：若有效說話長度小於 600ms 或音訊小於 19200 bytes，視為摩擦或短暫雜音，安靜捨棄
-            if (_uiState.value == AssistantUiState.RECORDING_SPEECH && pcmStream.size() >= 19200 && recordedDurationMs >= 600L) {
+            // 最短有效語音保護：若為使用者主動雙擊截斷，只要有收錄字音（>= 3200 bytes，約 100ms）即放行送出；自動判定則需 >= 600ms
+            val isValidManualCut = isManualStopRequested && pcmStream.size() >= 3200
+            val isValidAutoVad = pcmStream.size() >= 19200 && recordedDurationMs >= 600L
+
+            if (_uiState.value == AssistantUiState.RECORDING_SPEECH && (isValidManualCut || isValidAutoVad)) {
                 handleCapturedSpeech(pcmStream.toByteArray())
             } else {
-                Log.d(TAG, "Audio discarded: size=${pcmStream.size()} bytes, duration=${recordedDurationMs}ms (below threshold).")
+                Log.d(TAG, "Audio discarded: size=${pcmStream.size()} bytes, duration=${recordedDurationMs}ms, manual=$isManualStopRequested (below threshold).")
                 _isAuraVisible.value = false
                 _uiState.value = AssistantUiState.IDLE
             }

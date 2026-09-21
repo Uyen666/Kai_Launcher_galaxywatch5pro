@@ -67,7 +67,8 @@ fun HudWatchFaceScreen(
 ) {
     val context = LocalContext.current
     var currentTime by remember { mutableStateOf(Calendar.getInstance().time) }
-    var batteryPercent by remember { mutableIntStateOf(100) }
+    val batteryInfo by com.wristhub.launcher.hardware.WatchHardwareManager.currentBatteryInfo.collectAsState()
+    val batteryPercent = batteryInfo.percent
     val isPcConnected by PcWebSocketManager.isConnected.collectAsState()
 
     val wfConfig by WatchFaceSyncManager.config.collectAsState()
@@ -202,18 +203,9 @@ fun HudWatchFaceScreen(
         }
     }
 
-    // Battery level reading & reporting to PC
-    LaunchedEffect(isPcConnected) {
-        val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-        val batteryStatus = context.registerReceiver(null, batteryFilter)
-        val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-        val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-        if (level >= 0 && scale > 0) {
-            batteryPercent = (level * 100) / scale
-            if (isPcConnected) {
-                PcWebSocketManager.sendCommand("BATTERY_UPDATE", mapOf("level" to batteryPercent))
-            }
-        }
+    // 進入活躍模式或微光甦醒時確認即時系統電量
+    LaunchedEffect(isAmbient, ambientUpdateTrigger) {
+        com.wristhub.launcher.hardware.WatchHardwareManager.refreshBattery()
     }
 
     val cal = Calendar.getInstance().apply { time = currentTime }
@@ -231,7 +223,7 @@ fun HudWatchFaceScreen(
                     Modifier.pointerInput(Unit) {
                         detectTapGestures(
                             onDoubleTap = {
-                                com.wristhub.launcher.audio.WakeAssistantManager.startManualListening()
+                                com.wristhub.launcher.audio.WakeAssistantManager.handleDoubleTap()
                             }
                         )
                     }

@@ -38,8 +38,10 @@
 * **✨ 圓框動態霓虹光環（Bezel Aura Glow）**：
   * 專屬 Galaxy Watch 5 Pro 內凹鈦金屬外框打造的動態 SweepGradient 五色光環。
   * 說話時隨音訊能量即時呼吸膨脹擴散，視覺科技感直接拉滿。
-* **🤫 800ms 靜音自動截斷（VAD）**：
-  * 內建 16-bit PCM 即時能量分析器，說完話停頓 0.8 秒手錶自動微震一下結束收音，光環於 0.5 秒平滑淡出，全程無需手動點按螢幕。
+* **🤫 800ms 靜音自動截斷（VAD）與 ⚡ 戶外抗噪雙擊強制截斷（Dual-Cutoff）**：
+  * **800ms 靜音自動判斷**：內建 16-bit PCM 即時能量分析器，說完話停頓 0.8 秒手錶自動微震一下結束收音，光環於 0.5 秒平滑淡出，全程無需手動點按螢幕。
+  * **⚡ 戶外強雜音雙擊結束 / 膠囊點擊（Outdoor Anti-Noise Cutoff）**：在車陣、捷運、風切聲等吵雜環境中，若環境底噪過大導致靜音 VAD 遲未觸發，螢幕頂部會浮現「`說話中 • 點擊結束 ⚡`」膠囊，使用者可直接點擊或在錶面**再次點兩下（雙擊）**，手錶立即微震結束收音並秒速送入 Gemini 思考！
+  * **手動截斷最短字音放行**：針對手動截斷情境，系統將防摩擦門檻智慧放寬（>= 3200 bytes，約 100ms），確保即使用戶講完話立刻快速雙擊送出也不會被誤判丟棄。
 * **💬 懸浮毛玻璃對話卡片 + 手錶揚聲器 TTS 朗讀**：
   * 頂部浮現極簡思考膠囊，完成後彈出半透明毛玻璃卡片並由手錶實體喇叭唸出回覆，朗讀結束數秒後自動向上收合，時鐘走時全程不中斷。
 * **🛠️ 手錶本機硬體控制與 Function Calling**：
@@ -77,6 +79,10 @@
   * 手錶端透過背景協程（Coroutine）將檔案永久下載至 `context.filesDir/custom_bg.webp`。
 * **出門 100% 離線可用（Offline-First）：**
   * 斷開電腦或出門在外時，手錶開機瞬間自本地快取載入圖片與配置，基本時鐘、電量弧環、日期、心率、步數功能完整保留。
+* **🔋 手錶原生真實電量響應式監控（100% 離線可用 + 徹底脫鉤 PC 連線）：**
+  * 徹底修復舊版「電量僅在電腦連線時同步、斷線後凍結不變」的重大問題。
+  * 深度接入 Android 系統級 `Intent.ACTION_BATTERY_CHANGED` 黏性廣播與 Kotlin `StateFlow<BatteryInfo>` 響應式架構。
+  * 無論是否連線電腦、即使出門離線斷網，HUD 錶盤指針與數位模式之電量圓弧、電量百分比均與系統真實硬體狀態 100% 即時同步，插拔充電線瞬間感應。
 * **雙時鐘模式：**
   * **數位 HUD 模式**：霓虹色調大字體數位時間、實時秒數。
   * **經典指針模式**：高精度幾何 Canvas 繪製 12 小時刻度、時針、分針與每秒跳動一次的秒針（Tick-Tock）。
@@ -96,6 +102,11 @@
   * **動態按鍵映射（Dynamic Mapping）**：在網頁上隨意變更按鈕圖示、名稱、顏色與動作，點擊「儲存並同步」，手錶畫面**秒速熱更新**，完全無需重新編譯 APK！
   * **支援自訂指令（CMD Execution）**：可在電腦控制台上綁定任意指令（如 `notepad.exe`、`calc.exe`、`code .` 或 Python 自動化腳本）。
   * **即時除錯與封包監視器（Live Debugger）**：即時串流顯示手錶點擊延遲（如 `耗時 7.0ms`）、旋轉錶圈 Delta 數值、手錶電池回報與連線狀態。
+* **🌐 家裡／宿舍無痛切換：動態 UDP 自動發現與免改 IP 廣播（Zero-Config Dynamic Auto-Discovery）：**
+  * **告別寫死 IP 困擾**：後端 `wrist_server.py` 啟動時自動解析目前網卡 IP，並透過 UDP port `8766` 發送動態信標廣播（Beacon）。
+  * **手錶自動搜尋連線**：手錶斷線時自動啟動背景 UDP 監聽，無論在學校宿舍、家中 Wi-Fi 或手機熱點，手錶都能自動捕獲電腦當前 IP 並自動連線。
+  * **手動狀態檢查與即時觸發**：PC 遙控頁頂部狀態欄可直接點擊查看當前連線目標 IP，輕觸即可手動發起即時重新搜尋。
+  * **ADB 零重編廣播注入**：支援隨時發送廣播動態切換：`adb shell am broadcast -a com.wristhub.SET_PC_IP --es ip <PC_IP>`。
 * **手錶端互動與網路保活：**
   * 🔄 **雙向心跳保活（10s Ping/Pong Keep-Alive）**：手錶端 OkHttp WebSocket 啟用 10 秒週期心跳，防止長期待機時被家用路由器或 NAT 網關切斷閒置連線。
   * 🔇 **一鍵切換靜音**
@@ -242,13 +253,22 @@ pip install fastapi uvicorn websockets pillow imageio
 4. 電腦會**自動透過 WebSocket 將金鑰推送至手錶 SharedPreferences**，出門在外即使離線無電腦，手錶依然具備直連 Google 獨立運算能力！
 
 ### 5. 編譯並安裝手錶 App
+
+**方法 A（推薦・一鍵智慧部署）**：
+專案內建全自動部署腳本，自動連線手錶、增量編譯 APK、推送安裝並同步目前電腦動態 IP：
+```powershell
+.\deploy_watch.ps1
+```
+*若已有編譯好的 APK 僅需快速重裝：*
+```powershell
+.\deploy_watch.ps1 -SkipBuild
+```
+
+**方法 B（手動命令列部署）**：
 在專案根目錄執行 Gradle 編譯並推送至手錶：
 ```powershell
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
-啟動手錶 App：
-```powershell
 adb shell am start -n com.wristhub.launcher/.presentation.MainActivity
 ```
 

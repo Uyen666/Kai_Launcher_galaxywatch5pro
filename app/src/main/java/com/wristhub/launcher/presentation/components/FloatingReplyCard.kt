@@ -49,7 +49,9 @@ fun FloatingReplyCard(
         }
     }
 
-    val isVisible = uiState == AssistantUiState.PROCESSING || uiState == AssistantUiState.REPLY_SHOWING
+    val isVisible = uiState == AssistantUiState.RECORDING_SPEECH ||
+                    uiState == AssistantUiState.PROCESSING ||
+                    uiState == AssistantUiState.REPLY_SHOWING
 
     AnimatedVisibility(
         visible = isVisible,
@@ -72,7 +74,35 @@ fun FloatingReplyCard(
                 ),
             contentAlignment = if (isExpanded) Alignment.Center else Alignment.TopCenter
         ) {
-            if (uiState == AssistantUiState.PROCESSING) {
+            if (uiState == AssistantUiState.RECORDING_SPEECH) {
+                // 說話收音中的互動膠囊 (支援直接點擊提早結束收音開始思考)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xEE141416))
+                        .border(1.dp, Color(0x66FF5252), RoundedCornerShape(20.dp))
+                        .clickable {
+                            WakeAssistantManager.manualStopAndProcess()
+                        }
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF5252))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "說話中 • 點擊結束 ⚡",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
+                    )
+                }
+            } else if (uiState == AssistantUiState.PROCESSING) {
                 // 思考處理中的輕巧浮動膠囊 (Thinking Pill)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

@@ -1,9 +1,15 @@
-﻿import os
+import os
 import sys
 import time
 import socket
 import webbrowser
 import subprocess
+
+# 當透過 pythonw.exe 執行時，防止 sys.stdout 為 None 拋出例外
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
 def is_port_in_use(port: int = 8765) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -14,15 +20,26 @@ def main():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     server_script = os.path.join(current_dir, "wrist_server.py")
     
+    # 確保 server 使用 python.exe 以便在獨立終端機視窗中顯示日誌
+    python_exe = sys.executable
+    if python_exe.lower().endswith("pythonw.exe"):
+        py_normal = os.path.join(os.path.dirname(python_exe), "python.exe")
+        if os.path.exists(py_normal):
+            python_exe = py_normal
+    
     if not is_port_in_use(8765):
         print("=" * 60)
         print("  正在啟動 WristHub PC 伺服器...")
         print("=" * 60)
         
-        # 建立獨立的 Console 視窗執行伺服器
+        # 建立獨立的 Console 視窗執行伺服器 (並強制 UTF-8 編碼)
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
         subprocess.Popen(
-            [sys.executable, server_script],
+            [python_exe, server_script],
             cwd=current_dir,
+            env=env,
             creationflags=subprocess.CREATE_NEW_CONSOLE
         )
         

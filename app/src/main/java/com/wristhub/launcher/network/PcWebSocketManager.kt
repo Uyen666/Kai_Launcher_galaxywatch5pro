@@ -1,6 +1,7 @@
 package com.wristhub.launcher.network
 
 import android.content.Context
+import android.net.wifi.WifiManager
 import android.util.Log
 import com.wristhub.launcher.data.WatchFaceConfig
 import kotlinx.coroutines.CoroutineScope
@@ -14,6 +15,11 @@ import kotlinx.coroutines.launch
 import okhttp3.*
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
 data class RemoteButtonConfig(
@@ -55,11 +61,106 @@ object PcWebSocketManager {
     private val _buttonList = MutableStateFlow<List<RemoteButtonConfig>>(defaultButtons)
     val buttonList: StateFlow<List<RemoteButtonConfig>> = _buttonList.asStateFlow()
 
-    var currentPcIp: String = "192.168.0.109"
+    private const val PREFS_NAME = "wristhub_net_prefs"
+    private const val KEY_PC_IP = "pc_ip"
+    private const val DISCOVERY_PORT = 8766
+    const val DEFAULT_PC_IP = "192.168.0.102"
+
+    var currentPcIp: String = DEFAULT_PC_IP
+
+    private var udpDiscoveryJob: Job? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
 
     fun init(context: Context) {
         appContext = context.applicationContext
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        currentPcIp = prefs.getString(KEY_PC_IP, DEFAULT_PC_IP) ?: DEFAULT_PC_IP
         WatchFaceSyncManager.init(context.applicationContext)
+        startUdpDiscovery()
+    }
+
+    fun startUdpDiscovery() {
+        if (_isConnected.value || udpDiscoveryJob?.isActive == true) return
+        udpDiscoveryJob = scope.launch(Dispatchers.IO) {
+            var socket: DatagramSocket? = null
+            try {
+                val wifiManager = appContext?.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                multicastLock = wifiManager?.createMulticastLock("wristhub_udp")?.apply {
+                    setReferenceCounted(false)
+                    acquire()
+                }
+
+                socket = DatagramSocket(null).apply {
+                    reuseAddress = true
+                    broadcast = true
+                    soTimeout = 1500
+                    bind(InetSocketAddress(DISCOVERY_PORT))
+                }
+
+                val buffer = ByteArray(1024)
+                val packet = DatagramPacket(buffer, buffer.size)
+
+                val probeData = "{\"cmd\":\"DISCOVER_WRISTHUB\"}".toByteArray()
+                val broadcastAddr = InetAddress.getByName("255.255.255.255")
+                val probePacket = DatagramPacket(probeData, probeData.size, broadcastAddr, DISCOVERY_PORT)
+
+                var attempts = 0
+                while (!_isConnected.value && attempts < 60) {
+                    attempts++
+                    try {
+                        socket.send(probePacket)
+                    } catch (_: Exception) {}
+
+                    try {
+                        socket.receive(packet)
+                        val msg = String(packet.data, 0, packet.length)
+                        val json = JSONObject(msg)
+                        if (json.optString("service") == "wristhub") {
+                            val discoveredIp = json.optString("ip").trim()
+                            if (discoveredIp.isNotEmpty() && discoveredIp != "127.0.0.1") {
+                                Log.i(TAG, "🔍 UDP 自動發現 WristHub 電腦 IP: $discoveredIp")
+                                appContext?.let { ctx ->
+                                    updatePcIp(ctx, discoveredIp)
+                                }
+                                break
+                            }
+                        }
+                    } catch (_: SocketTimeoutException) {
+                        // 正常逾時繼續等待
+                    }
+                    delay(1000)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "UDP Discovery error: ${e.message}")
+            } finally {
+                socket?.close()
+                try {
+                    if (multicastLock?.isHeld == true) multicastLock?.release()
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    fun stopUdpDiscovery() {
+        udpDiscoveryJob?.cancel()
+        udpDiscoveryJob = null
+        try {
+            if (multicastLock?.isHeld == true) multicastLock?.release()
+        } catch (_: Exception) {}
+    }
+
+    fun updatePcIp(context: Context, newIp: String) {
+        val trimmed = newIp.trim()
+        if (trimmed.isNotEmpty()) {
+            currentPcIp = trimmed
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_PC_IP, trimmed)
+                .apply()
+            Log.d(TAG, "PC IP updated to: $trimmed, reconnecting...")
+            disconnect()
+            connect(trimmed, forceImmediate = true)
+        }
     }
 
     private const val INITIAL_RETRY_DELAY_MS = 3000L
@@ -84,6 +185,7 @@ object PcWebSocketManager {
                 Log.d(TAG, "Connected to PC: $ip")
                 _isConnected.value = true
                 currentRetryDelayMs = INITIAL_RETRY_DELAY_MS
+                stopUdpDiscovery()
                 sendCommand("GET_CONFIG")
             }
 
@@ -148,6 +250,7 @@ object PcWebSocketManager {
                 currentRetryDelayMs = (currentRetryDelayMs * 2).coerceAtMost(MAX_RETRY_DELAY_MS)
                 Log.w(TAG, "WebSocket failure: ${t.message}. Retrying in ${delayMs / 1000}s (exponential backoff)...")
                 _isConnected.value = false
+                startUdpDiscovery()
                 reconnectJob?.cancel()
                 reconnectJob = scope.launch {
                     delay(delayMs)

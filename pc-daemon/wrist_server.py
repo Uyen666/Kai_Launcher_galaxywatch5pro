@@ -1,6 +1,14 @@
+import sys
 import os
 import io
 import json
+
+# Windows 終端機 UTF-8 編碼支援，避免 Emoji 輸出引發 UnicodeEncodeError
+if sys.platform == "win32":
+    if sys.stdout is not None and hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if sys.stderr is not None and hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 import ctypes
 import datetime
 import subprocess
@@ -123,6 +131,9 @@ watch_state = {
     "battery": None
 }
 
+import time
+import threading
+
 def get_local_ip() -> str:
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -131,12 +142,77 @@ def get_local_ip() -> str:
         s.close()
         return ip
     except Exception:
-        return "192.168.0.109"
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return "127.0.0.1"
+
+DISCOVERY_PORT = 8766
+
+def start_udp_discovery_beacon():
+    """啟動 UDP 自動發現廣播，讓手錶在任何 Wi-Fi 環境（宿舍/住家）秒速自動找到電腦 IP"""
+    def beacon_worker():
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(("0.0.0.0", DISCOVERY_PORT))
+            sock.settimeout(1.0)
+            print(f"📡 UDP 自動發現服務已就緒 (Port: {DISCOVERY_PORT})，手錶連線 IP 免手動配置", flush=True)
+        except Exception as e:
+            print(f"⚠️ UDP 自動發現服務啟動失敗: {e}", flush=True)
+            return
+
+        last_beacon = 0
+        while True:
+            now = time.time()
+            if now - last_beacon > 2.0:
+                last_beacon = now
+                current_ip = get_local_ip()
+                payload = json.dumps({
+                    "service": "wristhub",
+                    "ip": current_ip,
+                    "port": 8765
+                }).encode("utf-8")
+                try:
+                    sock.sendto(payload, ("255.255.255.255", DISCOVERY_PORT))
+                except Exception:
+                    pass
+
+            try:
+                data, addr = sock.recvfrom(1024)
+                if b"DISCOVER_WRISTHUB" in data or b"wristhub" in data:
+                    current_ip = get_local_ip()
+                    reply = json.dumps({
+                        "service": "wristhub",
+                        "ip": current_ip,
+                        "port": 8765
+                    }).encode("utf-8")
+                    sock.sendto(reply, addr)
+            except (socket.timeout, OSError):
+                pass
+            except Exception:
+                pass
+
+    t = threading.Thread(target=beacon_worker, daemon=True)
+    t.start()
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
-            return json.load(f)
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    template_file = os.path.join(CURRENT_DIR, "config.template.json")
+    if os.path.exists(template_file):
+        try:
+            with open(template_file, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+                save_config(data)
+                return data
+        except Exception:
+            pass
     return {"buttons": []}
 
 def save_config(data):
@@ -1041,5 +1117,6 @@ if __name__ == "__main__":
     print(f"💻 本機控制台網址: http://localhost:8765", flush=True)
     print(f"📡 區域網路 IP: {local_ip}:8765", flush=True)
     print(f"⌚ 手錶通訊端點: ws://0.0.0.0:8765", flush=True)
+    start_udp_discovery_beacon()
     print("=" * 60, flush=True)
     uvicorn.run(app, host="0.0.0.0", port=8765, log_level="warning")
