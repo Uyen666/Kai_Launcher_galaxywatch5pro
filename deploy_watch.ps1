@@ -104,6 +104,9 @@ Write-Host "[OK] Installation successful!" -ForegroundColor Green
 # 5. Launch Launcher
 Write-Host "[4/4] Launching WristHub Launcher..." -ForegroundColor Yellow
 & $adb -s $activeDevice shell am start -n com.wristhub.launcher/.presentation.MainActivity
+try {
+    & $adb -s $activeDevice shell cmd package set-home-activity com.wristhub.launcher/.presentation.MainActivity | Out-Null
+} catch {}
 Write-Host "[Done] WristHub Launcher started on watch!" -ForegroundColor Green
 
 # 6. Automatically sync PC IP to Watch (Dynamically detect active IP, works across Dorm, Home, Hotspot)
