@@ -1,7 +1,7 @@
-# WristHub Galaxy Watch 5 Pro - Auto Build & Deploy Script
 [CmdletBinding()]
 param(
     [switch]$SkipBuild,
+    [switch]$Release,
     [switch]$Logcat
 )
 
@@ -73,20 +73,24 @@ if (-not $connected) {
 
 # 3. Build APK
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$flavor = if ($Release) { "release" } else { "debug" }
+$task = if ($Release) { "assembleRelease" } else { "assembleDebug" }
+$apkName = if ($Release) { "app-release.apk" } else { "app-debug.apk" }
+
 if (-not $SkipBuild) {
-    Write-Host "[2/4] Building Wear OS APK (assembleDebug)..." -ForegroundColor Yellow
+    Write-Host "[2/4] Building Wear OS APK ($task)..." -ForegroundColor Yellow
     $gradlew = Join-Path $projectRoot "gradlew.bat"
-    & $gradlew assembleDebug
+    & $gradlew $task
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Build failed! Please check Gradle errors above." -ForegroundColor Red
         exit 1
     }
     Write-Host "[OK] Build succeeded!" -ForegroundColor Green
 } else {
-    Write-Host "[2/4] Skipping build, using existing APK." -ForegroundColor Gray
+    Write-Host "[2/4] Skipping build, using existing $flavor APK ($apkName)." -ForegroundColor Gray
 }
 
-$apkPath = Join-Path $projectRoot "app\build\outputs\apk\debug\app-debug.apk"
+$apkPath = Join-Path $projectRoot "app\build\outputs\apk\$flavor\$apkName"
 if (-not (Test-Path $apkPath)) {
     Write-Host "Error: APK not found at $apkPath" -ForegroundColor Red
     exit 1
